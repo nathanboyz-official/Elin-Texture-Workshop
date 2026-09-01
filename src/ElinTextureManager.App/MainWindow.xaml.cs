@@ -1,23 +1,61 @@
-﻿using System.Text;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using ElinTextureManager.App.Services;
+using ElinTextureManager.App.ViewModels;
 
 namespace ElinTextureManager.App;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    private readonly AppServices _services;
+    private readonly MainViewModel _viewModel;
+
+    public MainWindow(AppServices services)
     {
+        _services = services;
+
         InitializeComponent();
+
+        _viewModel = new MainViewModel(services, Dispatcher);
+        _viewModel.SearchFocusRequested += () =>
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+        };
+
+        DataContext = _viewModel;
+
+        RestoreWindowState();
+
+        Loaded += async (_, _) => await _viewModel.StartAsync();
+        Closing += OnClosing;
+    }
+
+    private void RestoreWindowState()
+    {
+        var settings = _services.Settings;
+
+        if (settings.WindowWidth > 400 && settings.WindowHeight > 300)
+        {
+            Width = settings.WindowWidth;
+            Height = settings.WindowHeight;
+        }
+
+        if (settings.WindowMaximized) WindowState = WindowState.Maximized;
+    }
+
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        var settings = _services.Settings;
+
+        settings.WindowMaximized = WindowState == WindowState.Maximized;
+
+        if (WindowState == WindowState.Normal)
+        {
+            settings.WindowWidth = Width;
+            settings.WindowHeight = Height;
+        }
+
+        _services.SaveSettings();
+        _viewModel.Dispose();
     }
 }
