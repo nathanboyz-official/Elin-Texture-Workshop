@@ -36,7 +36,14 @@ public sealed class ModRowViewModel : ObservableObject
 
     public string LoadOrderText => Mod.InLoadOrderFile
         ? $"#{Mod.LoadOrderIndex + 1}"
-        : Mod.SourceType == TextureSourceType.Override ? "override" : "local";
+        : Mod.SourceType switch
+        {
+            TextureSourceType.Override => "override",
+            TextureSourceType.LocalMod => "local package",
+            // A Workshop item that loadorder.txt does not mention: say so rather than
+            // implying a position we do not have.
+            _ => "not in load order",
+        };
 
     public string LastUpdatedText => Mod.LastModifiedUtc == default
         ? "unknown"
