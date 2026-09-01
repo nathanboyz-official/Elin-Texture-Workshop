@@ -1,0 +1,318 @@
+using System.Collections.Concurrent;
+using ElinTextureManager.Core.Detection;
+using ElinTextureManager.Core.Logging;
+using ElinTextureManager.Core.Model;
+
+namespace ElinTextureManager.Core.Scanning;
+
+public sealed record ScanProgress(string Stage, int Done, int Total)
+{
+    public double Fraction => Total <= 0 ? 0 : (double)Done / Total;
+}
+
+public sealed class ScanOptions
+{
+    /// <summary>Hashing enables identical-texture detection and source-update detection.</summary>
+    public bool ComputeHashes { get; set; } = true;
+
+    /// <summary>How deep below a mod root to look for a "Texture Replace" folder.</summary>
+    public int MaxSearchDepth { get; set; } = 4;
+
+    /// <summary>Also scan Elin\Package for hand-installed mods.</summary>
+    public bool IncludeLocalPackages { get; set; } = true;
+}
+
+/// <summary>
+/// Walks Workshop items and local packages and produces the texture index.
+/// All I/O happens off the UI thread; the scanner itself is UI-agnostic.
+/// </summary>
+public sealed class ModScanner
+{
+    private readonly ScanOptions _options;
+
+    public ModScanner(ScanOptions? options = null) => _options = options ?? new ScanOptions();
+
+    public async Task<ScanResult> ScanAsync(
+        ElinPaths paths,
+        IProgress<ScanProgress>? progress = null,
+        CancellationToken ct = default)
+    {
+        return await Task.Run(() => Scan(paths, progress, ct), ct).ConfigureAwait(false);
+    }
+
+    private ScanResult Scan(ElinPaths paths, IProgress<ScanProgress>? progress, CancellationToken ct)
+    {
+        var result = new ScanResult();
+        var modDirs = new List<(string dir, TextureSourceType type)>();
+
+        if (!string.IsNullOrWhiteSpace(paths.WorkshopRoot) && Directory.Exists(paths.WorkshopRoot))
+        {
+            foreach (var d in SafeEnumerateDirectories(paths.WorkshopRoot, result))
+                modDirs.Add((d, TextureSourceType.Workshop));
+        }
+        else
+        {
+            result.Errors.Add("Workshop folder not found - only local packages will be scanned.");
+            AppLog.Warn("Workshop root missing or unset during scan.");
+        }
+
+        if (_options.IncludeLocalPackages && Directory.Exists(paths.PackageRoot))
+        {
+            foreach (var d in SafeEnumerateDirectories(paths.PackageRoot, result))
+            {
+                var isOverride = string.Equals(Path.GetFileName(d), ElinPaths.OverridePackageName,
+                    StringComparison.OrdinalIgnoreCase);
+                modDirs.Add((d, isOverride ? TextureSourceType.Override : TextureSourceType.LocalMod));
+            }
+        }
+
+        AppLog.Info($"Scanning {modDirs.Count} mod folders.");
+        progress?.Report(new ScanProgress("Scanning mods", 0, modDirs.Count));
+
+        var bag = new ConcurrentBag<ModPackage>();
+        var done = 0;
+
+        var parallelOptions = new ParallelOptions
+        {
+            CancellationToken = ct,
+            MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount - 1),
+        };
+
+        try
+        {
+            Parallel.ForEach(modDirs, parallelOptions, item =>
+            {
+                try
+                {
+                    var mod = ScanMod(item.dir, item.type, result);
+                    if (mod is not null) bag.Add(mod);
+                }
+                catch (Exception ex)
+                {
+                    // One malformed mod must never abort the scan.
+                    RecordError(result, $"Failed to scan {item.dir}: {ex.Message}");
+                }
+                finally
+                {
+                    var n = Interlocked.Increment(ref done);
+                    if (n % 5 == 0 || n == modDirs.Count)
+                        progress?.Report(new ScanProgress("Scanning mods", n, modDirs.Count));
+                }
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            AppLog.Info("Scan cancelled.");
+            throw;
+        }
+
+        result.Mods.AddRange(bag.OrderBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase));
+
+        progress?.Report(new ScanProgress("Building index", 0, 1));
+        TextureIndexBuilder.Build(result);
+
+        AppLog.Info($"Scan complete: {result.ModCount} mods, {result.TextureModCount} texture mods, "
+                    + $"{result.TextureFileCount} textures, {result.UniqueTextureCount} unique IDs, "
+                    + $"{result.ConflictCount} conflicts, {result.Errors.Count} errors.");
+
+        progress?.Report(new ScanProgress("Done", 1, 1));
+        return result;
+    }
+
+    private ModPackage? ScanMod(string dir, TextureSourceType type, ScanResult result)
+    {
+        var folderName = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar));
+        if (string.IsNullOrEmpty(folderName)) return null;
+
+        var isWorkshop = type == TextureSourceType.Workshop;
+        var workshopId = isWorkshop && folderName.All(char.IsDigit) ? folderName : null;
+
+        var mod = new ModPackage
+        {
+            Key = workshopId ?? folderName,
+            WorkshopId = workshopId,
+            Directory = dir,
+            Name = folderName,
+            SourceType = type,
+        };
+
+        try { mod.LastModifiedUtc = Directory.GetLastWriteTimeUtc(dir); }
+        catch { }
+
+        PackageMetadataParser.Apply(mod, Path.Combine(dir, "package.xml"));
+        mod.PreviewImagePath = FindPreviewImage(dir);
+
+        foreach (var textureRoot in FindTextureReplaceFolders(dir, result))
+            CollectTextures(mod, textureRoot, result);
+
+        return mod;
+    }
+
+    private static string? FindPreviewImage(string dir)
+    {
+        foreach (var name in new[] { "preview.jpg", "preview.png", "preview.jpeg", "thumbnail.png" })
+        {
+            var p = Path.Combine(dir, name);
+            try { if (File.Exists(p)) return p; }
+            catch { }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Finds "Texture Replace" folders. In every mod observed they sit directly under the
+    /// mod root, but the search is depth-limited rather than fixed so unusual layouts work.
+    /// </summary>
+    private IEnumerable<string> FindTextureReplaceFolders(string root, ScanResult result)
+    {
+        var found = new List<string>();
+        var queue = new Queue<(string dir, int depth)>();
+        queue.Enqueue((root, 0));
+
+        while (queue.Count > 0)
+        {
+            var (dir, depth) = queue.Dequeue();
+            if (depth > _options.MaxSearchDepth) continue;
+
+            string[] subs;
+            try { subs = Directory.GetDirectories(dir); }
+            catch (Exception ex)
+            {
+                RecordError(result, $"Cannot list {dir}: {ex.Message}");
+                continue;
+            }
+
+            foreach (var sub in subs)
+            {
+                var name = Path.GetFileName(sub);
+
+                if (string.Equals(name, ElinPaths.TextureReplaceFolder, StringComparison.OrdinalIgnoreCase))
+                {
+                    found.Add(sub);
+                    continue; // Do not descend further; its children are variants.
+                }
+
+                if (IsReparsePoint(sub)) continue;
+                queue.Enqueue((sub, depth + 1));
+            }
+        }
+
+        return found;
+    }
+
+    private static bool IsReparsePoint(string dir)
+    {
+        try
+        {
+            return new DirectoryInfo(dir).Attributes.HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch { return true; }
+    }
+
+    private void CollectTextures(ModPackage mod, string textureRoot, ScanResult result)
+    {
+        // Active files: directly inside "Texture Replace".
+        AddFiles(mod, textureRoot, textureRoot, isVariant: false, variantName: null, result);
+
+        // Variants: one level of sub-folders (e.g. "unused", "1_Regular_Tights").
+        string[] subs;
+        try { subs = Directory.GetDirectories(textureRoot); }
+        catch { return; }
+
+        foreach (var sub in subs)
+        {
+            if (IsReparsePoint(sub)) continue;
+            AddFiles(mod, sub, textureRoot, isVariant: true, variantName: Path.GetFileName(sub), result);
+        }
+    }
+
+    private void AddFiles(ModPackage mod, string dir, string textureRoot,
+        bool isVariant, string? variantName, ScanResult result)
+    {
+        string[] files;
+        try { files = Directory.GetFiles(dir); }
+        catch (Exception ex)
+        {
+            RecordError(result, $"Cannot read {dir}: {ex.Message}");
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            if (!ImageInfo.IsSupported(file)) continue;
+
+            try
+            {
+                var fi = new FileInfo(file);
+                var name = fi.Name;
+
+                var texture = new TextureFile
+                {
+                    FullPath = fi.FullName,
+                    FileName = name,
+                    Identity = TextureIdentity.Parse(name),
+                    RelativePath = Relative(mod.Directory, fi.FullName),
+                    ModKey = mod.Key,
+                    ModName = mod.Name,
+                    WorkshopId = mod.WorkshopId,
+                    SourceType = mod.SourceType,
+                    IsVariant = isVariant,
+                    VariantName = variantName,
+                    FileSize = fi.Length,
+                    LastModifiedUtc = fi.LastWriteTimeUtc,
+                };
+
+                if (string.IsNullOrEmpty(texture.TextureId))
+                {
+                    RecordError(result, $"Skipping unnamed texture file: {fi.FullName}");
+                    continue;
+                }
+
+                if (ImageInfo.TryReadPngSize(fi.FullName, out var w, out var h))
+                {
+                    texture.PixelWidth = w;
+                    texture.PixelHeight = h;
+                }
+                else
+                {
+                    RecordError(result, $"Unreadable or invalid PNG: {fi.FullName}");
+                }
+
+                if (_options.ComputeHashes)
+                    texture.Hash = ImageInfo.TryComputeHash(fi.FullName);
+
+                lock (mod.Textures) mod.Textures.Add(texture);
+            }
+            catch (Exception ex)
+            {
+                RecordError(result, $"Failed on {file}: {ex.Message}");
+            }
+        }
+    }
+
+    private static string Relative(string root, string full)
+    {
+        try { return Path.GetRelativePath(root, full); }
+        catch { return full; }
+    }
+
+    private static IEnumerable<string> SafeEnumerateDirectories(string root, ScanResult result)
+    {
+        try { return Directory.GetDirectories(root); }
+        catch (Exception ex)
+        {
+            RecordError(result, $"Cannot enumerate {root}: {ex.Message}");
+            return Array.Empty<string>();
+        }
+    }
+
+    private static void RecordError(ScanResult result, string message)
+    {
+        AppLog.Warn(message);
+        lock (result.Errors)
+        {
+            // Keep the list bounded; the log file has the full history.
+            if (result.Errors.Count < 500) result.Errors.Add(message);
+        }
+    }
+}

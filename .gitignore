@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+
+# Publish artifacts
+[Pp]ublish/
+*.zip
+
+# Logs, caches and databases containing local paths
+Logs/
+*.log
+*.db
+*.db-shm
+*.db-wal
+Thumbnails/
+
+# User-specific settings and local state
+settings.json
+selections.json
+aliases.json
+Backups/
+
+# OS / editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+*.tmp

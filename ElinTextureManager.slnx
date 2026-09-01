@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ElinTextureManager.App/ElinTextureManager.App.csproj" />
+    <Project Path="src/ElinTextureManager.Core/ElinTextureManager.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ElinTextureManager.Tests/ElinTextureManager.Tests.csproj" />
+  </Folder>
+</Solution>
