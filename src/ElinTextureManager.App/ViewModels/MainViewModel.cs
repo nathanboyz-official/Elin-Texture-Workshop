@@ -313,12 +313,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (_previousPage is null) return;
 
+        // Rebuild the list BEFORE the page is shown. Refilling the collection resets the
+        // panel's offset, so doing it after the view exists would scroll it back to the
+        // top - exactly what the remembered offset is there to prevent.
+        if (_previousPage is TextureBrowserViewModel b) b.Apply(preserveScroll: true);
+        else if (_previousPage is OverridesViewModel o) o.Apply();
+        else if (_previousPage is ModsViewModel m) m.Apply(preserveScroll: true);
+
         CurrentPage = _previousPage;
         _previousPage = null;
         OnPropertyChanged(nameof(CanGoBack));
-
-        if (CurrentPage is TextureBrowserViewModel b) b.Apply();
-        else if (CurrentPage is OverridesViewModel o) o.Apply();
     }
 
     // ---- scanning ----
@@ -387,9 +391,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             };
         }
 
-        if (CurrentPage is TextureBrowserViewModel b) b.Apply();
+        // A rescan or an override change refreshes the page in place, so keep the user
+        // where they were instead of throwing them back to the top.
+        if (CurrentPage is TextureBrowserViewModel b) b.Apply(preserveScroll: true);
         else if (CurrentPage is OverridesViewModel o) o.Apply();
-        else if (CurrentPage is ModsViewModel m) m.Apply();
+        else if (CurrentPage is ModsViewModel m) m.Apply(preserveScroll: true);
 
         if (_app.Selections.Count > 0 && ElinRunning) RestartNeeded = true;
     }

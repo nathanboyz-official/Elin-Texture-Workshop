@@ -113,9 +113,24 @@ public sealed class TextureBrowserViewModel : ObservableObject
 
     public double CardHeight => ThumbnailSize + 96;
 
-    /// <summary>Rebuilds the visible cards from the current scan and filters.</summary>
-    public void Apply()
+    /// <summary>
+    /// Where the grid was scrolled to. Held here rather than in the view, because the
+    /// view is rebuilt every time you navigate away and back.
+    /// </summary>
+    public double ScrollOffset { get; set; }
+
+    /// <summary>
+    /// Rebuilds the visible cards from the current scan and filters.
+    /// </summary>
+    /// <param name="preserveScroll">
+    /// True when the same result set is being rebuilt - returning from a texture, or a
+    /// background rescan - so the user keeps their place. False when the filters changed,
+    /// where the old position would be meaningless.
+    /// </param>
+    public void Apply(bool preserveScroll = false)
     {
+        if (!preserveScroll) ScrollOffset = 0;
+
         Items.Clear();
 
         var entries = _app.Scan.Index.Values.AsEnumerable();
@@ -143,7 +158,8 @@ public sealed class TextureBrowserViewModel : ObservableObject
             if (_scope == TextureScope.UnselectedOnly && hasOverride) continue;
 
             var winner = _app.Winners.GetValueOrDefault(entry.TextureId) ?? TextureWinner.None;
-            var card = new TextureCardViewModel(entry, winner, _app.Aliases.Get(entry.TextureId), hasOverride);
+            var card = new TextureCardViewModel(
+                entry, winner, _app.Aliases.Get(entry.TextureId), hasOverride, ThumbnailSize);
 
             if (!card.Matches(_searchText)) continue;
 

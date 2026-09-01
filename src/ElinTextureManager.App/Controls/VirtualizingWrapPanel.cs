@@ -172,8 +172,12 @@ public class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
                 RemoveInternalChildRange(args.Position.Index, args.ItemUICount);
                 break;
             case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+                // Drop the realised containers but leave the offset alone. Whether a
+                // reset should return to the top depends on why it happened - a filter
+                // change should, a background refresh should not - so that decision
+                // belongs to the page, not here. MeasureOverride clamps it to the new
+                // extent, so an offset past the end of a shorter list is still safe.
                 RemoveInternalChildRange(0, InternalChildren.Count);
-                SetVerticalOffset(0);
                 break;
         }
 

@@ -37,7 +37,8 @@
             </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+        <ScrollViewer x:Name="ModScroller" Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
             <ItemsControl ItemsSource="{Binding Items}"
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling">

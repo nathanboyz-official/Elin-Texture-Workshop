@@ -114,8 +114,13 @@ public sealed class ModsViewModel : ObservableObject
 
     public int ResultCount => Items.Count;
 
-    public void Apply()
+    /// <summary>Scroll position, kept across navigation. See TextureBrowserViewModel.</summary>
+    public double ScrollOffset { get; set; }
+
+    public void Apply(bool preserveScroll = false)
     {
+        if (!preserveScroll) ScrollOffset = 0;
+
         Items.Clear();
 
         // Conflict counts per mod: how many of its textures another enabled mod also ships.

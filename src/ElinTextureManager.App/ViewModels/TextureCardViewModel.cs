@@ -13,13 +13,18 @@ public sealed class TextureCardViewModel : ObservableObject
     private BitmapSource? _thumbnail;
     private bool _thumbnailRequested;
 
-    public TextureCardViewModel(TextureEntry entry, TextureWinner winner, string? alias, bool hasOverride)
+    public TextureCardViewModel(
+        TextureEntry entry, TextureWinner winner, string? alias, bool hasOverride, int slotWidth)
     {
         Entry = entry;
         Winner = winner;
         Alias = alias;
         HasOverride = hasOverride;
+        SlotWidth = slotWidth;
     }
+
+    /// <summary>Width of the tile, used to pick a decode size.</summary>
+    public int SlotWidth { get; }
 
     public TextureEntry Entry { get; }
     public TextureWinner Winner { get; }
@@ -57,17 +62,26 @@ public sealed class TextureCardViewModel : ObservableObject
                                     ?? Entry.Versions.FirstOrDefault()?.DimensionsText
                                     ?? "unknown";
 
+    /// <summary>
+    /// The tile image. Reading it starts the load, so the work happens exactly when a
+    /// tile is bound for display and never for the thousands of tiles that are not.
+    ///
+    /// The trigger is the binding rather than the container's Loaded event because the
+    /// grid virtualises: containers get reused for different items, and a reused
+    /// container raises no second Loaded, which would leave recycled tiles blank.
+    /// </summary>
     public BitmapSource? Thumbnail
     {
-        get => _thumbnail;
+        get
+        {
+            EnsureThumbnail();
+            return _thumbnail;
+        }
         private set => SetProperty(ref _thumbnail, value);
     }
 
-    /// <summary>
-    /// Loads the thumbnail on demand. The grid is virtualised, so this runs only for
-    /// tiles that actually become visible.
-    /// </summary>
-    public async void EnsureThumbnail(int slotWidth)
+    /// <summary>Loads the thumbnail once, off the UI thread.</summary>
+    public async void EnsureThumbnail()
     {
         if (_thumbnailRequested) return;
         _thumbnailRequested = true;
@@ -76,7 +90,7 @@ public sealed class TextureCardViewModel : ObservableObject
         if (path is null) return;
 
         var sourceWidth = Winner.File?.PixelWidth ?? 0;
-        var decodeWidth = TextureImageLoader.DecodeWidthFor(sourceWidth, slotWidth);
+        var decodeWidth = TextureImageLoader.DecodeWidthFor(sourceWidth, SlotWidth);
 
         Thumbnail = await TextureImageLoader.LoadAsync(path, decodeWidth);
     }

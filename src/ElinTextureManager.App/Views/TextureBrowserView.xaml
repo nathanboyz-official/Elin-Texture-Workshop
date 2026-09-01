@@ -160,9 +160,11 @@
 
         <!-- Grid -->
         <Grid Grid.Row="2">
-            <ItemsControl ItemsSource="{Binding Items}"
+            <!-- Standard, not Recycling: the panel releases containers with
+                 IItemContainerGenerator.Remove, which is the non-recycling contract. -->
+            <ItemsControl x:Name="TextureGrid" ItemsSource="{Binding Items}"
                           VirtualizingPanel.IsVirtualizing="True"
-                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          VirtualizingPanel.VirtualizationMode="Standard"
                           ScrollViewer.CanContentScroll="True"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -185,7 +187,6 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Button Style="{StaticResource TextureCardButton}"
-                                Loaded="Card_Loaded"
                                 Command="{Binding DataContext.OpenCommand,
                                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 CommandParameter="{Binding}" />
