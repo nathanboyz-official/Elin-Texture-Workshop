@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using ElinTextureManager.Core.Detection;
 using ElinTextureManager.Core.Logging;
 using ElinTextureManager.Core.Model;
+using ElinTextureManager.Core.Storage;
 
 namespace ElinTextureManager.Core.Scanning;
 
@@ -29,8 +30,16 @@ public sealed class ScanOptions
 public sealed class ModScanner
 {
     private readonly ScanOptions _options;
+    private readonly CacheDatabase? _cache;
 
-    public ModScanner(ScanOptions? options = null) => _options = options ?? new ScanOptions();
+    /// <summary>Cache snapshot for the scan in progress; empty when caching is off.</summary>
+    private Dictionary<string, CachedTexture> _cached = new(StringComparer.OrdinalIgnoreCase);
+
+    public ModScanner(ScanOptions? options = null, CacheDatabase? cache = null)
+    {
+        _options = options ?? new ScanOptions();
+        _cache = cache;
+    }
 
     public async Task<ScanResult> ScanAsync(
         ElinPaths paths,
@@ -40,10 +49,22 @@ public sealed class ModScanner
         return await Task.Run(() => Scan(paths, progress, ct), ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Runs a scan on the calling thread. Used by tests and by tooling; the UI always
+    /// goes through <see cref="ScanAsync"/> so disk work stays off the dispatcher.
+    /// </summary>
+    public ScanResult ScanSynchronously(
+        ElinPaths paths,
+        IProgress<ScanProgress>? progress = null,
+        CancellationToken ct = default)
+        => Scan(paths, progress, ct);
+
     private ScanResult Scan(ElinPaths paths, IProgress<ScanProgress>? progress, CancellationToken ct)
     {
         var result = new ScanResult();
         var modDirs = new List<(string dir, TextureSourceType type)>();
+
+        _cached = _cache?.LoadAll() ?? new Dictionary<string, CachedTexture>(StringComparer.OrdinalIgnoreCase);
 
         if (!string.IsNullOrWhiteSpace(paths.WorkshopRoot) && Directory.Exists(paths.WorkshopRoot))
         {
@@ -110,6 +131,7 @@ public sealed class ModScanner
 
         progress?.Report(new ScanProgress("Building index", 0, 1));
         TextureIndexBuilder.Build(result);
+        UpdateCache(result);
 
         AppLog.Info($"Scan complete: {result.ModCount} mods, {result.TextureModCount} texture mods, "
                     + $"{result.TextureFileCount} textures, {result.UniqueTextureCount} unique IDs, "
@@ -117,6 +139,28 @@ public sealed class ModScanner
 
         progress?.Report(new ScanProgress("Done", 1, 1));
         return result;
+    }
+
+    /// <summary>Writes what this scan learned back to the cache and drops vanished files.</summary>
+    private void UpdateCache(ScanResult result)
+    {
+        if (_cache is null || !_cache.IsOpen) return;
+
+        try
+        {
+            var all = result.Mods.SelectMany(m => m.Textures).ToList();
+
+            _cache.SaveAll(all.Select(t => new CachedTexture(
+                t.FullPath, t.FileSize, t.LastModifiedUtc.Ticks,
+                t.PixelWidth, t.PixelHeight, t.Hash)));
+
+            _cache.PruneMissing(all.Select(t => t.FullPath)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Cache update skipped: {ex.Message}");
+        }
     }
 
     private ModPackage? ScanMod(string dir, TextureSourceType type, ScanResult result)
@@ -268,18 +312,32 @@ public sealed class ModScanner
                     continue;
                 }
 
-                if (ImageInfo.TryReadPngSize(fi.FullName, out var w, out var h))
+                // A cache entry is only trusted when size and modified time both match,
+                // so a Steam update always invalidates it.
+                if (_cached.TryGetValue(fi.FullName, out var hit)
+                    && hit.Size == fi.Length
+                    && hit.ModifiedTicks == fi.LastWriteTimeUtc.Ticks
+                    && (!_options.ComputeHashes || hit.Hash is not null))
                 {
-                    texture.PixelWidth = w;
-                    texture.PixelHeight = h;
+                    texture.PixelWidth = hit.Width;
+                    texture.PixelHeight = hit.Height;
+                    texture.Hash = hit.Hash;
                 }
                 else
                 {
-                    RecordError(result, $"Unreadable or invalid PNG: {fi.FullName}");
-                }
+                    if (ImageInfo.TryReadPngSize(fi.FullName, out var w, out var h))
+                    {
+                        texture.PixelWidth = w;
+                        texture.PixelHeight = h;
+                    }
+                    else
+                    {
+                        RecordError(result, $"Unreadable or invalid PNG: {fi.FullName}");
+                    }
 
-                if (_options.ComputeHashes)
-                    texture.Hash = ImageInfo.TryComputeHash(fi.FullName);
+                    if (_options.ComputeHashes)
+                        texture.Hash = ImageInfo.TryComputeHash(fi.FullName);
+                }
 
                 lock (mod.Textures) mod.Textures.Add(texture);
             }
