@@ -17,12 +17,18 @@ public sealed class TextureVersionViewModel : ObservableObject
     private bool _isSelectedForCompare;
     private bool _isChosen;
 
-    public TextureVersionViewModel(TextureFile file, bool isChosen, bool isWinner, bool isIdenticalToWinner)
+    public TextureVersionViewModel(
+        TextureFile file,
+        bool isChosen,
+        bool isWinner,
+        bool isIdenticalToWinner,
+        bool isIdenticalToOriginal = false)
     {
         File = file;
         _isChosen = isChosen;
         IsWinner = isWinner;
         IsIdenticalToWinner = isIdenticalToWinner;
+        IsIdenticalToOriginal = isIdenticalToOriginal;
         LoadImage();
     }
 
@@ -58,6 +64,14 @@ public sealed class TextureVersionViewModel : ObservableObject
 
     /// <summary>True when this file is byte-identical to the currently winning one.</summary>
     public bool IsIdenticalToWinner { get; }
+
+    /// <summary>
+    /// True when this file is byte-identical to the base game's own copy - a "replacement"
+    /// that replaces nothing, which is worth knowing before choosing it.
+    /// </summary>
+    public bool IsIdenticalToOriginal { get; }
+
+    public bool IsVanilla => File.SourceType == TextureSourceType.Vanilla;
 
     public bool IsWinner { get; }
 
@@ -126,7 +140,7 @@ public sealed class TextureDetailViewModel : ObservableObject
 
     public TextureEntry Entry { get; }
 
-    public string TextureId => Entry.TextureId;
+    public string TextureId => Entry.DisplayId;
     public string Category => Entry.Category;
     public string Prefix => Entry.Prefix;
     public string SourceSummary => Entry.VersionSummary;
@@ -135,6 +149,27 @@ public sealed class TextureDetailViewModel : ObservableObject
     public List<TextureVersionViewModel> Variants { get; private set; } = new();
 
     public bool HasVariants => Variants.Count > 0;
+
+    /// <summary>
+    /// The base game's own version of this image, when it ships as a loose file under
+    /// Package\_Elona. Null for "Texture Replace" sprites - see <see cref="OriginalNote"/>.
+    /// </summary>
+    public TextureVersionViewModel? Original { get; private set; }
+
+    public bool HasOriginal => Original is not null;
+
+    /// <summary>
+    /// Said plainly rather than left blank, because "no original shown" and "there is no
+    /// original" are different things and the user cannot tell them apart otherwise.
+    /// </summary>
+    public string OriginalNote => Entry.Kind == ReplacementKind.Portrait
+        ? "The base game has no portrait of this name, so this mod adds one rather than replacing it."
+        : "Sprites in \"Texture Replace\" address a slot inside Elin's packed sprite atlas, "
+          + "which is not a loose file. The original for this one cannot be shown.";
+
+    /// <summary>True when a mod ships the base game's file byte for byte.</summary>
+    public bool AnyMatchesOriginal => Original?.File.Hash is not null
+                                      && Versions.Any(v => v.IsIdenticalToOriginal);
 
     public TextureWinner Winner { get; private set; } = TextureWinner.None;
 
@@ -213,6 +248,7 @@ public sealed class TextureDetailViewModel : ObservableObject
         Winner = _app.Winners.GetValueOrDefault(Entry.TextureId) ?? TextureWinner.None;
         var winnerHash = Winner.File?.Hash;
         var chosen = _app.Selections.Get(Entry.TextureId);
+        var originalHash = Entry.Vanilla?.Hash;
 
         TextureVersionViewModel Build(TextureFile f) => new(
             f,
@@ -227,15 +263,24 @@ public sealed class TextureDetailViewModel : ObservableObject
                                  && f.Hash is not null
                                  && Winner.File is not null
                                  && !string.Equals(f.FullPath, Winner.File.FullPath, StringComparison.OrdinalIgnoreCase)
-                                 && string.Equals(f.Hash, winnerHash, StringComparison.OrdinalIgnoreCase));
+                                 && string.Equals(f.Hash, winnerHash, StringComparison.OrdinalIgnoreCase),
+            isIdenticalToOriginal: originalHash is not null
+                                   && f.Hash is not null
+                                   && f.SourceType != TextureSourceType.Vanilla
+                                   && string.Equals(f.Hash, originalHash, StringComparison.OrdinalIgnoreCase));
 
         Versions = Entry.Versions.Select(Build).ToList();
         Variants = Entry.Variants.Select(Build).ToList();
+        Original = Entry.Vanilla is null ? null : Build(Entry.Vanilla);
         WinnerVersion = Versions.FirstOrDefault(v => v.IsWinner);
 
         OnPropertyChanged(nameof(Versions));
         OnPropertyChanged(nameof(Variants));
         OnPropertyChanged(nameof(HasVariants));
+        OnPropertyChanged(nameof(Original));
+        OnPropertyChanged(nameof(HasOriginal));
+        OnPropertyChanged(nameof(OriginalNote));
+        OnPropertyChanged(nameof(AnyMatchesOriginal));
         OnPropertyChanged(nameof(WinnerVersion));
         OnPropertyChanged(nameof(WinnerLabel));
         OnPropertyChanged(nameof(ConfidenceLabel));
@@ -272,7 +317,8 @@ public sealed class TextureDetailViewModel : ObservableObject
     {
         if (_app.Paths is null) return;
 
-        var overridePath = Path.Combine(_app.Paths.OverrideTextureRoot, source.FileName);
+        // Portrait overrides live in the package's Portrait folder, not Texture Replace.
+        var overridePath = Path.Combine(_app.Paths.OverrideRootFor(source.Kind), source.FileName);
 
         var existing = Entry.Versions.FirstOrDefault(v => v.SourceType == TextureSourceType.Override);
         if (existing is not null) Entry.Versions.Remove(existing);
@@ -284,10 +330,11 @@ public sealed class TextureDetailViewModel : ObservableObject
             FullPath = overridePath,
             FileName = source.FileName,
             Identity = source.Identity,
-            RelativePath = Path.Combine("Texture Replace", source.FileName),
+            RelativePath = Path.Combine(source.Kind.FolderName(), source.FileName),
             ModKey = mod?.Key ?? Core.Detection.ElinPaths.OverridePackageName,
             ModName = "Elin Texture Manager Overrides",
             SourceType = TextureSourceType.Override,
+            Kind = source.Kind,
             FileSize = source.FileSize,
             LastModifiedUtc = DateTime.UtcNow,
             Hash = source.Hash,
@@ -328,6 +375,14 @@ public sealed class TextureDetailViewModel : ObservableObject
         _onChanged();
     }
 
+    /// <summary>Everything the A/B comparison can be pointed at, the original included.</summary>
+    private IEnumerable<TextureVersionViewModel> AllComparable()
+    {
+        foreach (var v in Versions) yield return v;
+        foreach (var v in Variants) yield return v;
+        if (Original is not null) yield return Original;
+    }
+
     private void ToggleCompare(TextureVersionViewModel? version)
     {
         if (version is null) return;
@@ -358,7 +413,7 @@ public sealed class TextureDetailViewModel : ObservableObject
 
     private void ClearCompare()
     {
-        foreach (var v in Versions.Concat(Variants)) v.IsSelectedForCompare = false;
+        foreach (var v in AllComparable()) v.IsSelectedForCompare = false;
         CompareA = null;
         CompareB = null;
         CompareMode = false;

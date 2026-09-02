@@ -41,6 +41,18 @@ public sealed class AppSettings
     public string LastPage { get; set; } = "AllTextures";
     public string LastFilter { get; set; } = "All";
 
+    /// <summary>Section selected on the Mods page, e.g. "Characters" or "Sprite".</summary>
+    public string ModsSection { get; set; } = "All";
+
+    /// <summary>Most Workshop items are not texture packs, so the Mods page filters them out.</summary>
+    public bool ModsTexturesOnly { get; set; } = true;
+
+    /// <summary>
+    /// Whether the News page may contact Steam. This is the only network access the
+    /// application makes; turning it off leaves the page showing the last cached fetch.
+    /// </summary>
+    public bool EnableSteamNews { get; set; } = true;
+
     public string ActiveProfile { get; set; } = "Default";
 
     public static AppSettings Load(string path)

@@ -38,6 +38,7 @@ public sealed class OverrideManager
 
     public string PackageRoot => _paths.OverridePackageRoot;
     public string TextureRoot => _paths.OverrideTextureRoot;
+    public string PortraitRoot => _paths.OverridePortraitRoot;
 
     /// <summary>
     /// Optional second copy into Elin\User\Texture Replace - the game's own user-level
@@ -52,6 +53,7 @@ public sealed class OverrideManager
         {
             Directory.CreateDirectory(_paths.OverridePackageRoot);
             Directory.CreateDirectory(_paths.OverrideTextureRoot);
+            Directory.CreateDirectory(_paths.OverridePortraitRoot);
 
             if (!File.Exists(_paths.OverridePackageXml))
             {
@@ -85,7 +87,9 @@ public sealed class OverrideManager
         var ready = EnsurePackage();
         if (!ready.Success) return ready;
 
-        var target = Path.Combine(_paths.OverrideTextureRoot, source.FileName);
+        // A package mirrors _Elona's layout, so a portrait override has to land in the
+        // package's Portrait folder - putting it in "Texture Replace" would do nothing.
+        var target = Path.Combine(_paths.OverrideRootFor(source.Kind), source.FileName);
 
         var verdict = SafePath.Audit("Write override", target,
             SafePath.CanWriteOverrideFile(target, _paths));
@@ -103,7 +107,10 @@ public sealed class OverrideManager
             // so the file can be replaced or removed later.
             ClearReadOnly(target);
 
-            if (MirrorToUserFolder) MirrorToUser(source);
+            // The user-level fallback folder only exists for Texture Replace; Elin has no
+            // User\Portrait equivalent, so portraits are never mirrored.
+            if (MirrorToUserFolder && source.Kind == ReplacementKind.TextureReplace)
+                MirrorToUser(source);
 
             _selections.Set(new OverrideSelection
             {
@@ -115,6 +122,7 @@ public sealed class OverrideManager
                 SourcePath = source.FullPath,
                 SourceHash = source.Hash ?? ImageInfo.TryComputeHash(source.FullPath),
                 SourceType = source.SourceType,
+                Kind = source.Kind,
                 SelectedUtc = DateTime.UtcNow,
             });
 
@@ -169,13 +177,21 @@ public sealed class OverrideManager
         if (fileName is null)
         {
             // No record, but a stray file may still exist: fall back to the ID plus .png.
-            fileName = textureId + ".png";
+            // The ID may carry the portrait namespace, which is never part of a file name.
+            fileName = TextureIdentity.Display(textureId) + ".png";
         }
 
         if (!SafePath.IsSafeFileName(fileName))
             return OverrideResult.Fail($"Unsafe file name recorded for {textureId}.");
 
-        var target = Path.Combine(_paths.OverrideTextureRoot, fileName);
+        // Selections written before portrait support have no kind; the namespace on the
+        // ID still identifies a portrait, so the file is looked for in the right folder.
+        var kind = selection?.Kind
+                   ?? (TextureIdentity.IsPortraitId(textureId)
+                       ? ReplacementKind.Portrait
+                       : ReplacementKind.TextureReplace);
+
+        var target = Path.Combine(_paths.OverrideRootFor(kind), fileName);
 
         if (!File.Exists(target))
         {
@@ -193,7 +209,7 @@ public sealed class OverrideManager
         {
             ClearReadOnly(target);
             File.Delete(target);
-            RemoveMirror(fileName);
+            if (kind == ReplacementKind.TextureReplace) RemoveMirror(fileName);
             _selections.RemoveAndSave(textureId);
 
             AppLog.Info($"Override removed: {textureId}");
@@ -245,9 +261,11 @@ public sealed class OverrideManager
         // Sweep any orphaned PNGs that no longer have a selection record.
         try
         {
-            if (Directory.Exists(_paths.OverrideTextureRoot))
+            foreach (var root in new[] { _paths.OverrideTextureRoot, _paths.OverridePortraitRoot })
             {
-                foreach (var file in Directory.GetFiles(_paths.OverrideTextureRoot, "*.png"))
+                if (!Directory.Exists(root)) continue;
+
+                foreach (var file in Directory.GetFiles(root, "*.png"))
                 {
                     var verdict = SafePath.CanDeleteOverrideFile(file, _paths, Path.GetFileName(file));
                     if (!verdict.Allowed) { failed++; continue; }
@@ -278,7 +296,7 @@ public sealed class OverrideManager
 
         foreach (var sel in _selections.All())
         {
-            var overrideFile = Path.Combine(_paths.OverrideTextureRoot, sel.FileName);
+            var overrideFile = Path.Combine(_paths.OverrideRootFor(sel.Kind), sel.FileName);
             var fileExists = File.Exists(overrideFile);
 
             if (!byKey.TryGetValue(sel.SourceModKey, out var mod))

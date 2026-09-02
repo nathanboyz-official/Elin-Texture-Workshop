@@ -173,6 +173,54 @@ public static class LoadOrderFile
         }
     }
 
+    /// <summary>
+    /// Sets one mod's enabled flag. Returns true when the document actually changed, so a
+    /// caller can avoid writing (and backing up) the file for a no-op.
+    ///
+    /// A mod Steam has downloaded but Elin has not launched with yet is absent from the
+    /// file. Absent means loaded, so enabling such a mod is already true and needs no
+    /// entry; disabling one does, and appends a line the game reads on next launch.
+    /// </summary>
+    public static bool SetEnabled(LoadOrderDocument doc, string modDirectory, bool enabled)
+    {
+        if (string.IsNullOrWhiteSpace(modDirectory)) return false;
+
+        var index = doc.IndexOfPath(modDirectory);
+
+        if (index >= 0)
+        {
+            var entry = doc.Entries[index];
+
+            // An unparsed line is preserved verbatim on save, so its flag is not ours to
+            // change; refuse rather than write something the game may not understand.
+            if (!entry.IsParsed)
+            {
+                AppLog.Warn($"Refusing to change the enabled flag of an unparsed "
+                            + $"loadorder.txt line: {entry.Path}");
+                return false;
+            }
+
+            if (entry.Enabled == enabled) return false;
+
+            entry.Enabled = enabled;
+            return true;
+        }
+
+        if (enabled) return false;
+
+        string full;
+        try { full = System.IO.Path.GetFullPath(modDirectory); }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Cannot add a load-order entry for '{modDirectory}': {ex.Message}");
+            return false;
+        }
+
+        doc.Entries.Add(new LoadOrderEntry { Path = full, Enabled = false });
+        AppLog.Info($"Added a disabled load-order entry for {full}");
+        return true;
+    }
+
     /// <summary>Lists available load-order backups, newest first.</summary>
     public static IReadOnlyList<FileInfo> ListBackups(string backupDirectory)
     {

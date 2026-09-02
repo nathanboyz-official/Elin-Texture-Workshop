@@ -1,3 +1,4 @@
+using System.IO;
 using ElinTextureManager.Core.Detection;
 using ElinTextureManager.Core.LoadOrder;
 using ElinTextureManager.Core.Logging;
@@ -23,6 +24,10 @@ public sealed class AppServices : IDisposable
     public OverrideManager? Overrides { get; private set; }
 
     public ScanResult Scan { get; private set; } = new();
+
+    /// <summary>The base game's own loose images, used to show a texture's original.</summary>
+    public VanillaAssets Vanilla { get; private set; } = new();
+
     public LoadOrderDocument LoadOrder { get; set; } = new();
     public Dictionary<string, TextureWinner> Winners { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -117,7 +122,36 @@ public sealed class AppServices : IDisposable
         LoadOrder = LoadOrderFile.Read(Paths.LoadOrderFile);
         LoadOrderFile.ApplyTo(LoadOrder, Scan.Mods);
 
+        Vanilla = VanillaAssets.Load(Paths);
+        Vanilla.AttachTo(Scan);
+
         Winners = new WinnerResolver(Settings.PriorityConvention).ResolveAll(Scan);
+    }
+
+    /// <summary>
+    /// Writes a set of enable/disable changes to loadorder.txt in one pass. Elin's file is
+    /// the only place a whole mod can be switched off, and it is backed up before every
+    /// write - a failed backup refuses the save outright.
+    /// </summary>
+    public ModToggleResult ApplyModEnabledStates(IEnumerable<(ModPackage Mod, bool Enabled)> changes)
+    {
+        if (Paths is null) return new ModToggleResult(false, 0, null, "Elin folder is not set.");
+
+        var changed = 0;
+        foreach (var (mod, enabled) in changes)
+            if (LoadOrderFile.SetEnabled(LoadOrder, mod.Directory, enabled)) changed++;
+
+        if (changed == 0)
+            return new ModToggleResult(true, 0, null, "Nothing to change.");
+
+        if (!LoadOrderFile.Save(LoadOrder, AppPaths.BackupDirectory, out var backup))
+            return new ModToggleResult(false, 0,  null,
+                "Could not write loadorder.txt - the original file was left untouched. See the log.");
+
+        LoadOrderFile.ApplyTo(LoadOrder, Scan.Mods);
+        RecomputeWinners();
+
+        return new ModToggleResult(true, changed, backup, null);
     }
 
     /// <summary>Recomputes winners after a selection changes, without a full rescan.</summary>
@@ -138,4 +172,16 @@ public sealed class AppServices : IDisposable
         try { Aliases?.Save(); } catch { }
         try { Cache.Dispose(); } catch { }
     }
+}
+
+/// <summary>Outcome of writing mod enable/disable changes to loadorder.txt.</summary>
+public sealed record ModToggleResult(bool Success, int Changed, string? BackupPath, string? Error)
+{
+    public string Message => Error
+        ?? (Changed == 0
+            ? "Nothing to change."
+            : BackupPath is null
+                ? $"{Changed} mod{(Changed == 1 ? "" : "s")} updated."
+                : $"{Changed} mod{(Changed == 1 ? "" : "s")} updated. "
+                  + $"Backup: {Path.GetFileName(BackupPath)}");
 }

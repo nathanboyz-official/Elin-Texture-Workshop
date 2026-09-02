@@ -25,6 +25,7 @@ public static class TextureIndexBuilder
                         TextureId = texture.TextureId,
                         Prefix = texture.Prefix,
                         NumericId = texture.Identity.NumericId,
+                        Kind = texture.Kind,
                     };
                     result.Index[texture.TextureId] = entry;
                 }

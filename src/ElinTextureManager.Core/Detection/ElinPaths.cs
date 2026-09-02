@@ -33,6 +33,28 @@ public sealed class ElinPaths
 
     public string OverridePackageXml => Path.Combine(OverridePackageRoot, "package.xml");
 
+    /// <summary>The directory segment Elin uses for portrait replacements.</summary>
+    public const string PortraitFolder = "Portrait";
+
+    /// <summary>
+    /// The base game's own package, Elin\Package\_Elona. Its loose images are the
+    /// originals a replacement is measured against.
+    /// </summary>
+    public string VanillaPackageRoot => Path.Combine(PackageRoot, "_Elona");
+
+    /// <summary>Our override package's Portrait folder.</summary>
+    public string OverridePortraitRoot => Path.Combine(OverridePackageRoot, PortraitFolder);
+
+    /// <summary>
+    /// Which folder inside the override package a replacement of the given kind is
+    /// written to. A package mirrors the layout of _Elona, so the kind picks the folder.
+    /// </summary>
+    public string OverrideRootFor(Model.ReplacementKind kind) => kind switch
+    {
+        Model.ReplacementKind.Portrait => OverridePortraitRoot,
+        _ => OverrideTextureRoot,
+    };
+
     public bool LooksValid => Directory.Exists(ElinRoot) && File.Exists(ExecutablePath);
 
     public bool HasLoadOrderFile => File.Exists(LoadOrderFile);
@@ -129,6 +151,7 @@ public static class AppPaths
     public static string SelectionsFile => Path.Combine(Root, "selections.json");
     public static string AliasFile => Path.Combine(Root, "aliases.json");
     public static string DatabaseFile => Path.Combine(Root, "cache.db");
+    public static string NewsCacheFile => Path.Combine(Root, "news.json");
     public static string LogDirectory => Path.Combine(Root, "Logs");
     public static string BackupDirectory => Path.Combine(Root, "Backups");
     public static string ThumbnailCache => Path.Combine(Root, "Thumbnails");

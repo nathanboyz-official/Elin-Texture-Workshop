@@ -65,6 +65,16 @@ public sealed class SettingsViewModel : ObservableObject
         set { _app.Settings.AutoRefreshWorkshop = value; Persist(); OnPropertyChanged(); }
     }
 
+    /// <summary>
+    /// The only network access the application makes. Off leaves the News page showing
+    /// whatever was cached by the last successful fetch.
+    /// </summary>
+    public bool EnableSteamNews
+    {
+        get => _app.Settings.EnableSteamNews;
+        set { _app.Settings.EnableSteamNews = value; Persist(); OnPropertyChanged(); }
+    }
+
     public bool WatchFileChanges
     {
         get => _app.Settings.WatchFileChanges;

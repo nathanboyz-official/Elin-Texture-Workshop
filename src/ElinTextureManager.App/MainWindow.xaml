@@ -31,6 +31,9 @@
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:SettingsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:NewsViewModel}">
+            <views:NewsView />
+        </DataTemplate>
 
         <!-- Sidebar entry -->
         <Style x:Key="NavButton" TargetType="RadioButton">

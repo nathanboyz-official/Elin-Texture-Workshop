@@ -31,6 +31,46 @@ public static class ShellService
         }
     }
 
+    /// <summary>
+    /// Opens a Workshop item's page in whatever the user has set as their browser.
+    /// Only ever called for an ID read from a Workshop folder name, and the URL is built
+    /// here rather than taken from anywhere, so nothing arbitrary can be launched.
+    /// </summary>
+    public static void OpenWorkshopPage(string? workshopId)
+    {
+        if (string.IsNullOrWhiteSpace(workshopId)) return;
+
+        foreach (var c in workshopId)
+        {
+            if (c is >= '0' and <= '9') continue;
+            AppLog.Warn($"Refusing to open a Workshop page for a non-numeric ID: {workshopId}");
+            return;
+        }
+
+        OpenUrl($"https://steamcommunity.com/sharedfiles/filedetails/?id={workshopId}");
+    }
+
+    /// <summary>Opens an https URL in the default browser. Anything else is refused.</summary>
+    public static void OpenUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            AppLog.Warn($"Refusing to open a non-https URL: {url}");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = uri.AbsoluteUri, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Could not open {uri.AbsoluteUri}", ex);
+        }
+    }
+
     /// <summary>Opens Explorer with the file selected.</summary>
     public static void RevealFile(string? path)
     {

@@ -20,6 +20,13 @@ public sealed class OverrideSelection
     public string? SourceHash { get; set; }
 
     public TextureSourceType SourceType { get; set; } = TextureSourceType.Workshop;
+
+    /// <summary>
+    /// Which folder of the override package the copy lives in. Defaults to Texture Replace
+    /// so a selections.json written before portrait support still loads unchanged.
+    /// </summary>
+    public ReplacementKind Kind { get; set; } = ReplacementKind.TextureReplace;
+
     public DateTime SelectedUtc { get; set; } = DateTime.UtcNow;
 
     /// <summary>Profile this selection belongs to. Reserved for future profile support.</summary>

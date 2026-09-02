@@ -31,9 +31,14 @@ public sealed class TextureCardViewModel : ObservableObject
     public string? Alias { get; }
     public bool HasOverride { get; }
 
-    public string TextureId => Entry.TextureId;
+    /// <summary>The ID as shown on the tile: portrait IDs without their index namespace.</summary>
+    public string TextureId => Entry.DisplayId;
+
     public string Category => Entry.Category;
     public string Prefix => Entry.Prefix;
+
+    /// <summary>Portraits are replaced by file name rather than by sprite index.</summary>
+    public bool IsPortrait => Entry.Kind == ReplacementKind.Portrait;
 
     /// <summary>The alias when the user has named this texture, otherwise nothing.</summary>
     public string? DisplayName => string.IsNullOrWhiteSpace(Alias) ? null : Alias;

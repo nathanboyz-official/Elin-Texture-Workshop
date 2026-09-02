@@ -9,6 +9,14 @@ namespace ElinTextureManager.Core.Model;
 public sealed record TextureIdentity(string TextureId, string Prefix, int? NumericId)
 {
     /// <summary>
+    /// Namespace applied to portrait IDs. Portraits and "Texture Replace" sprites are
+    /// matched by file name inside *different* folders, so the same name in each is two
+    /// different images. Namespacing keeps them apart in the index; the prefix is an
+    /// implementation detail and is stripped again by <see cref="Display"/>.
+    /// </summary>
+    public const string PortraitNamespace = "portrait:";
+
+    /// <summary>
     /// Parses a file name such as "objC_2115.png" into id/prefix/number.
     /// Never throws: unparseable names still yield a usable identity so that one odd
     /// file cannot take a scan down.
@@ -38,6 +46,36 @@ public sealed record TextureIdentity(string TextureId, string Prefix, int? Numer
 
         return new TextureIdentity(name, name, null);
     }
+
+    /// <summary>
+    /// Identity for a file in a "Portrait" folder. Portraits are addressed by their whole
+    /// vanilla file name ("UN_ashland.png", "special_f-Alice-TCO.png"), which has no
+    /// index to parse, so the name is kept intact under the portrait namespace.
+    /// </summary>
+    public static TextureIdentity ForPortrait(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return new TextureIdentity(string.Empty, string.Empty, null);
+
+        var name = Path.GetFileNameWithoutExtension(fileName.Trim());
+        if (string.IsNullOrEmpty(name))
+            return new TextureIdentity(string.Empty, string.Empty, null);
+
+        return new TextureIdentity(PortraitNamespace + name, "portrait", null);
+    }
+
+    /// <summary>Strips the index namespace from an ID so the user sees the plain name.</summary>
+    public static string Display(string? textureId)
+    {
+        if (string.IsNullOrEmpty(textureId)) return string.Empty;
+        return textureId.StartsWith(PortraitNamespace, StringComparison.Ordinal)
+            ? textureId[PortraitNamespace.Length..]
+            : textureId;
+    }
+
+    /// <summary>True when the ID belongs to a portrait rather than a sprite.</summary>
+    public static bool IsPortraitId(string? textureId) =>
+        textureId is not null && textureId.StartsWith(PortraitNamespace, StringComparison.Ordinal);
 
     private static bool IsAllDigits(string s)
     {

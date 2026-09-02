@@ -82,7 +82,7 @@
                                     <!-- Detail -->
                                     <StackPanel Grid.Column="1" Margin="14,2,12,0">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding TextureId}" FontSize="15"
+                                            <TextBlock Text="{Binding DisplayId}" FontSize="15"
                                                        FontWeight="SemiBold"
                                                        Foreground="{StaticResource TextPrimaryBrush}" />
                                             <TextBlock Text="&#x2190;" Margin="10,0,8,0"

@@ -1,12 +1,16 @@
 # Elin Texture Manager
 
 A Windows desktop application for managing texture replacement mods for the Steam game
-**Elin**. It scans your installed Workshop mods, shows every replacement texture visually,
-finds the ones supplied by more than one mod, and lets you pick exactly which version you
-want — per texture, not per mod.
+**Elin**. It scans your installed Workshop mods, shows every replacement texture and
+portrait visually, finds the ones supplied by more than one mod, and lets you pick exactly
+which version you want — per texture, not per mod.
 
-It is **not** a load-order editor. Load order is included, but the primary system is a
-per-texture override manager.
+It is also a mod manager: mods are grouped into the same sections they were published
+under on the Steam Workshop, it tells you which of them change how characters look, and a
+single switch turns any of them off.
+
+It is **not** primarily a load-order editor. Load order is included, and turning a mod off
+writes to it, but the headline system is the per-texture override manager.
 
 ---
 
@@ -26,6 +30,16 @@ Instead:
 
 The chosen texture is copied into a dedicated local mod. Your Workshop folders are never
 written to.
+
+Or, when the problem is a whole mod rather than one texture:
+
+1. Click **Mods**. Everything is grouped the way the Workshop groups it, plus sections for
+   what a mod actually ships.
+2. Click **Characters** to see only the mods that change how NPCs, monsters and the player
+   look, with a count each.
+3. Flip the switch on the ones you do not want.
+4. Press **APPLY CHANGES**. `loadorder.txt` is backed up, then written.
+5. Restart Elin.
 
 ---
 
@@ -54,11 +68,37 @@ written to.
 - Detects when you unsubscribe from a source mod, and keeps your override
 - Import and export your selections as JSON, or export the whole thing as a standalone mod
 
-**Mods, load order and conflicts**
-- Every detected mod with texture count, conflict count, unique count and load position
-- Click a mod to browse only its textures
+**The original**
+- Every version of a texture is shown against the base game's own file, read straight from
+  `Package\_Elona`
+- **USE THIS TEXTURE** on the original puts vanilla back without disabling a whole mod
+- A mod that ships the base game's file byte for byte is labelled **SAME AS ORIGINAL**
+- Where there is no original to show, it says so and says why — see
+  [Which originals are available](#which-originals-are-available)
+
+**Mods, sections and turning mods off**
+- Mods are grouped into the sections they were published under on the Workshop
+  (Sprite, Portrait, NPC, PCC, Item, General, QoL …), read from `<tags>` in `package.xml`
+- Extra sections come from what a mod actually ships: **Characters**, **Portraits**,
+  **Items**, **Objects**
+- Each row says how many character sprites and portraits the mod replaces, so a
+  Workshop listing that says only "Sprite" still tells you what it touches
+- A switch per mod turns the whole thing off. Changes are batched, confirmed, and
+  written to `loadorder.txt` behind a mandatory backup
+- Each mod's own package ID, author, update date, tags and description are on the row
+- Click a mod to browse only its textures; a button opens its Workshop page
+
+**Load order and conflicts**
+- Every detected mod with image count, conflict count, unique count and load position
 - Visual load-order editor with drag-and-drop, enable/disable, and a mandatory backup
   before any write
+
+**Game news**
+- Elin's own Steam announcements, so a stable update that breaks texture mods is visible
+  next to the mods themselves
+- Patch notes are marked as such, and the last fetch is cached for offline use
+- Beside them, the mods Steam has touched most recently — purely local, no network needed
+- Off-switch in Settings; see [Network access](#network-access)
 
 **Everything else**
 - Watches the Workshop folder and notices new, updated and removed mods (debounced, so a
@@ -74,8 +114,8 @@ written to.
 
 ## Installation
 
-Download or build `ElinTextureManager.exe` and run it. There is no installer, no account,
-no network access, and no browser component.
+Download or build `ElinTextureManager.exe` and run it. There is no installer, no account
+and no browser component.
 
 Application data lives in `%APPDATA%\ElinTextureManager`:
 
@@ -84,9 +124,28 @@ settings.json      paths, options, window state
 selections.json    your texture choices
 aliases.json       custom texture names
 cache.db           SQLite metadata cache
+news.json          last fetched Steam announcements
 Logs\              application log
 Backups\           load-order backups
 ```
+
+### Network access
+
+One feature uses the network, and only that one: the **Game News** page asks Steam's
+public news endpoint for Elin's announcements.
+
+```
+https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=2135150
+```
+
+No API key, no account, no identifiers — the app ID and a count, nothing else. Turn it off
+in Settings and the page shows whatever the last successful fetch cached. Everything else
+in the application works entirely from files on your disk.
+
+The only other outbound action is opening a link in your browser, which happens only when
+you click **Workshop** on a mod row or **Open on Steam** on an announcement. Workshop URLs
+are built from a Workshop folder name that has been checked to be all digits, and only
+`https` links are ever launched.
 
 Nothing is written inside your Steam Workshop folders.
 
@@ -102,10 +161,43 @@ Elin's Steam App ID is **2135150**. The application:
    on other drives. Nothing is hardcoded to `C:`.
 3. Looks for `steamapps\common\Elin` and
    `steamapps\workshop\content\2135150` in each library.
-4. Walks every Workshop item looking for a folder named `Texture Replace`, reading
-   `package.xml` for the mod's title, author, version and load priority.
+4. Walks every Workshop item looking for a folder named `Texture Replace` or `Portrait`,
+   reading `package.xml` for the mod's title, author, version, load priority and tags.
 5. Indexes every supported image inside those folders by **file name**, because that is
-   how Elin matches a replacement texture.
+   how Elin matches a replacement.
+
+Packages shipped with the game declare `<builtin>true</builtin>` (`_Elona`, `_ModdingKit`
+and friends). Their images are the originals, not replacements of anything, so they are
+never indexed as a mod's versions — otherwise every replaced portrait would look like a
+two-mod conflict. They are read separately as the originals instead.
+
+### The two replacement folders
+
+An Elin package mirrors the layout of `Package\_Elona`, and two of its folders are
+replacement points a texture mod uses:
+
+| Folder | Addressed by | Example |
+| --- | --- | --- |
+| `Texture Replace` | a slot in a packed sprite atlas | `objC_2115.png` |
+| `Portrait` | the vanilla file name | `UN_ashland.png` |
+
+The same file name in each folder is two different images, so portrait IDs are namespaced
+internally and an override is written back into whichever folder it came from. You never
+see the namespace; the UI shows the plain name.
+
+### Workshop tags
+
+`package.xml` carries the tags the author published under:
+
+```xml
+<tags>NPC,Sprite</tags>
+```
+
+They are author-typed free text, so spelling and casing vary (`QoL` / `Qol`, `sprite`,
+`NPC Sprite`). They are normalised into fixed sections, compound tags count for each half
+they name, and anything unrecognised is **not** discarded — the mod lands under **Other**
+and the author's own wording stays searchable. A mod with no tags at all also lands under
+**Other** rather than disappearing.
 
 If detection fails, you can browse for the Elin folder yourself in Settings; the choice is
 remembered.
@@ -130,6 +222,56 @@ those sub-folder files are shown as *variants*: selectable, but not counted as a
 conflicts. Selecting one copies it into your override package, which does make it active.
 
 ---
+
+## Which originals are available
+
+Clicking a texture shows the base game's own version of it beneath the modded ones — where
+one exists as a loose file. It is worth being exact about when that is, because "no
+original shown" and "there is no original" are different things and the application says
+which it means.
+
+**Available.** Anything the game ships as an individual file under `Package\_Elona`:
+
+- every portrait in `_Elona\Portrait` (473 of them)
+- the item textures in `_Elona\Texture\Item`
+- the whole-sheet textures (`world.png`, `blocks.png`, `objs_S.png` …)
+
+On a typical install this covers **every replaced portrait** — the large majority of what
+a portrait pack touches.
+
+**Not available.** The `objC_*`, `objS_*`, `objCL_*` sprites that `Texture Replace` uses.
+Those name a slot inside a Unity sprite atlas packed into `Elin_Data`, and the slots are
+not a uniform grid that can be derived from the loose `objs_C.png`: the indices installed
+mods actually use run well past the number of cells that file holds, and cropping it at
+the obvious row-major, column-major, 64px and 128px positions matches none of them.
+Reading those out needs a Unity asset parser, which this application deliberately does not
+carry. The comparison view says so plainly rather than showing a wrong crop.
+
+### Putting the original back
+
+The original is offered like any other version, so **USE THIS TEXTURE** on it copies the
+base game's file into your override package. That reverts one image to vanilla without
+disabling the mod that supplies it — useful when a 400-portrait pack got one character
+wrong. `Package\_Elona` is opened read-only and never written to.
+
+## Turning a whole mod off
+
+The switch on each mod row edits `loadorder.txt`, which is the only place Elin records
+whether a Workshop mod loads.
+
+Changes are **batched**: flipping switches marks rows `NOT SAVED` and writes nothing.
+**APPLY CHANGES** states how many mods go on and off, takes a timestamped backup, and only
+then writes. Elin picks the change up the next time it launches.
+
+Two cases are worth knowing:
+
+- **A mod Steam has downloaded but Elin has not launched with yet** is absent from
+  `loadorder.txt`. Absent means loaded, so enabling it is already true and writes nothing;
+  disabling it appends a `…\<id>,0` line.
+- **Local packages under `Elin\Package`** are never listed in `loadorder.txt` and are
+  always loaded, so their switch is disabled rather than silently doing nothing.
+
+A line the parser did not recognise is preserved verbatim and its flag is never rewritten.
 
 ## How the override system works
 
@@ -276,9 +418,33 @@ Settings → Elin Installation → Change, and pick the folder containing `Elin.
 
 **No textures found**
 Check the Workshop path in Settings points at
-`...\steamapps\workshop\content\2135150`. Mods without a `Texture Replace` folder do not
-contribute textures; untick "Only mods with texture replacements" on the Mods page to see
-everything that was detected.
+`...\steamapps\workshop\content\2135150`. Mods without a `Texture Replace` or `Portrait`
+folder do not contribute images; untick "Only mods with replacement images" on the Mods
+page to see everything that was detected.
+
+**I turned a mod off but it is still in the game**
+Elin reads `loadorder.txt` at launch. Restart the game. If it still loads, check the Load
+Order page shows it as disabled — a mod installed by hand under `Elin\Package` is not
+listed in that file and cannot be switched off from here; remove its folder instead.
+
+**A mod I want to disable has no switch**
+It is a local package under `Elin\Package`, or the override package this application
+writes. Neither appears in `loadorder.txt`, so there is no flag to set.
+
+**The original is not shown for a character sprite**
+That is expected, and the panel explains it: `objC_*` sprites live inside Elin's packed
+sprite atlas rather than as loose files. Portraits, item textures and the whole sheets do
+show their original. See [Which originals are available](#which-originals-are-available).
+
+**A section is missing from the Mods page**
+Sections are only shown when at least one installed mod is in them, so the counts never
+promise more than they deliver. A mod whose tags are not recognised — or which has no tags
+at all — appears under **Other**, never nowhere.
+
+**The News page is empty**
+Either Steam could not be reached, or news is turned off in Settings. The page says which,
+and shows the last cached fetch when it has one. Everything else in the application works
+without a connection.
 
 **My selected texture did not appear in game**
 Restart Elin — changes only take effect at launch. If it still does not appear, try

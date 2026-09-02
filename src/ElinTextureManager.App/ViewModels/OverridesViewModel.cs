@@ -30,7 +30,11 @@ public sealed class OverrideRowViewModel : ObservableObject
     public OverrideSelection Selection => Status.Selection;
     public string OverrideFilePath { get; }
 
+    /// <summary>The stored key, used for lookups and removal.</summary>
     public string TextureId => Selection.TextureId;
+
+    /// <summary>The same ID without its index namespace, for display.</summary>
+    public string DisplayId => Core.Model.TextureIdentity.Display(Selection.TextureId);
     public string SourceModName => Selection.SourceModName;
     public string? WorkshopId => Selection.SourceWorkshopId;
     public string SourcePath => Selection.SourcePath;

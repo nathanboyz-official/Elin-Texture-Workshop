@@ -69,9 +69,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         Browser = new TextureBrowserViewModel(_app, OpenTextureDetail);
         Overrides = new OverridesViewModel(_app, OnDataChanged, OpenTextureDetail);
-        Mods = new ModsViewModel(_app, OpenModDetail);
+        Mods = new ModsViewModel(_app, OpenModDetail, OnDataChanged);
         LoadOrder = new LoadOrderViewModel(_app, OnDataChanged);
         Settings = new SettingsViewModel(_app, OnPathsChanged, OnDisplayChanged);
+        News = new NewsViewModel(_app);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(userRequested: true), () => !IsScanning);
         NavigateCommand = new RelayCommand(p => Navigate(p as string));
@@ -90,6 +91,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ModsViewModel Mods { get; }
     public LoadOrderViewModel LoadOrder { get; }
     public SettingsViewModel Settings { get; }
+    public NewsViewModel News { get; }
 
     public ObservableCollection<NavItem> NavItems { get; } = new();
 
@@ -208,6 +210,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         NavItems.Add(new NavItem("Overrides", "Selected Overrides", ""));
         NavItems.Add(new NavItem("Mods", "Mods", ""));
         NavItems.Add(new NavItem("LoadOrder", "Load Order", ""));
+        NavItems.Add(new NavItem("News", "Game News", ""));
         NavItems.Add(new NavItem("Settings", "Settings", ""));
     }
 
@@ -252,6 +255,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             case "LoadOrder":
                 LoadOrder.Apply();
                 CurrentPage = LoadOrder;
+                break;
+            case "News":
+                CurrentPage = News;
+                // Fire and forget: the page shows its cache at once and fills in when the
+                // fetch lands, so navigation is never blocked on the network.
+                _ = News.LoadAsync();
                 break;
             case "Settings":
                 Settings.RaisePathProperties();

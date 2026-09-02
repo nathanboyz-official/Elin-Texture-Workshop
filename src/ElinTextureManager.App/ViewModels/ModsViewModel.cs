@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Media.Imaging;
 using ElinTextureManager.App.Imaging;
 using ElinTextureManager.App.Mvvm;
@@ -8,38 +9,138 @@ using ElinTextureManager.Core.Services;
 
 namespace ElinTextureManager.App.ViewModels;
 
+/// <summary>One clickable section on the Mods page.</summary>
+public sealed class ModSectionViewModel : ObservableObject
+{
+    private bool _isSelected;
+    private int _count;
+
+    public ModSectionViewModel(string key, string label, string group)
+    {
+        Key = key;
+        Label = label;
+        Group = group;
+    }
+
+    /// <summary>Stable key, persisted as the last-used section.</summary>
+    public string Key { get; }
+
+    public string Label { get; }
+
+    /// <summary>"Content" for sections derived from what a mod ships, "Workshop tags" for tags.</summary>
+    public string Group { get; }
+
+    public int Count
+    {
+        get => _count;
+        set => SetProperty(ref _count, value);
+    }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+}
+
 /// <summary>A row on the Mods page.</summary>
 public sealed class ModRowViewModel : ObservableObject
 {
     private BitmapSource? _preview;
+    private bool _enabled;
+    private bool _descriptionExpanded;
 
-    public ModRowViewModel(ModPackage mod, int conflictCount, int uniqueCount)
+    public ModRowViewModel(ModPackage mod, int conflictCount, int uniqueCount, bool enabled)
     {
         Mod = mod;
         ConflictCount = conflictCount;
         UniqueCount = uniqueCount;
+        _enabled = enabled;
+        Sections = ModSection.SectionsFor(mod);
         LoadPreview();
     }
 
     public ModPackage Mod { get; }
 
+    /// <summary>Raised when the user flips the switch, so the page can offer to save.</summary>
+    public event Action<ModRowViewModel>? EnabledChanged;
+
     public string Name => Mod.Name;
     public string? WorkshopId => Mod.WorkshopId;
     public string Directory => Mod.Directory;
     public string? Author => Mod.Author;
+
+    /// <summary>
+    /// The mod's own ID from package.xml. Shown first on the detail line because it is
+    /// what the mod calls itself, and it is usually more recognisable - and more
+    /// searchable - than a numeric Workshop ID.
+    /// </summary>
+    public string PackageId => Mod.ModId ?? Mod.Name;
+
+    public string? Description => string.IsNullOrWhiteSpace(Mod.Description) ? null : Mod.Description;
+
+    public bool HasDescription => Description is not null;
+
+    public bool DescriptionExpanded
+    {
+        get => _descriptionExpanded;
+        set => SetProperty(ref _descriptionExpanded, value);
+    }
+
     public int TextureCount => Mod.TextureCount;
+    public int SpriteCount => Mod.SpriteCount;
+    public int PortraitCount => Mod.PortraitCount;
     public int ConflictCount { get; }
     public int UniqueCount { get; }
-    public bool Enabled => Mod.Enabled;
+
+    /// <summary>How many character sprites this mod replaces - objC and friends.</summary>
+    public int CharacterCount => Mod.CharacterTextureCount;
+
+    public bool ReplacesCharacters => Mod.ReplacesCharacters;
+
+    public bool HasPortraits => Mod.PortraitCount > 0;
+
+    public string CharacterSummary => CharacterCount == 1 ? "1 character" : CharacterCount + " characters";
+
+    public string PortraitSummary => PortraitCount == 1 ? "1 portrait" : PortraitCount + " portraits";
+
+    public IReadOnlyList<string> Sections { get; }
+
+    public string SectionsText => string.Join("   ", Sections);
+
     public bool HasTextures => Mod.HasTextureReplacements;
     public bool MetadataMissing => Mod.MetadataMissing;
 
+    /// <summary>Local packages are always loaded, so their switch is disabled.</summary>
+    public bool CanToggle => Mod.CanToggle;
+
+    /// <summary>
+    /// The enabled state as shown, which may differ from what is on disk until the page
+    /// applies its changes. Flipping this writes nothing to loadorder.txt.
+    /// </summary>
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (!SetProperty(ref _enabled, value)) return;
+            OnPropertyChanged(nameof(IsPending));
+            EnabledChanged?.Invoke(this);
+        }
+    }
+
+    /// <summary>True when the switch no longer matches what loadorder.txt says.</summary>
+    public bool IsPending => Enabled != Mod.Enabled;
+
+    public void RefreshPendingState() => OnPropertyChanged(nameof(IsPending));
+
     public string LoadOrderText => Mod.InLoadOrderFile
-        ? $"#{Mod.LoadOrderIndex + 1}"
+        ? "#" + (Mod.LoadOrderIndex + 1)
         : Mod.SourceType switch
         {
             TextureSourceType.Override => "override",
             TextureSourceType.LocalMod => "local package",
+            TextureSourceType.Vanilla => "base game",
             // A Workshop item that loadorder.txt does not mention: say so rather than
             // implying a position we do not have.
             _ => "not in load order",
@@ -53,6 +154,7 @@ public sealed class ModRowViewModel : ObservableObject
     {
         TextureSourceType.Override => "Override package",
         TextureSourceType.LocalMod => "Local package",
+        TextureSourceType.Vanilla => "Base game",
         _ => "Workshop",
     };
 
@@ -72,18 +174,71 @@ public sealed class ModRowViewModel : ObservableObject
         if (path is null) return;
         Preview = await TextureImageLoader.LoadAsync(path, 128);
     }
+
+    /// <summary>Which content sections this mod belongs to, from what it actually ships.</summary>
+    public bool InContentSection(string key) => key switch
+    {
+        ModsViewModel.SectionCharacters => ReplacesCharacters,
+        ModsViewModel.SectionPortraits => HasPortraits,
+        ModsViewModel.SectionItems => HasCategory(TextureCategory.Items),
+        ModsViewModel.SectionObjects => HasCategory(TextureCategory.Objects),
+        _ => false,
+    };
+
+    private bool HasCategory(string category) => Mod.Textures.Any(t =>
+        t.Kind == ReplacementKind.TextureReplace
+        && !t.IsVariant
+        && t.Category == category);
+
+    public bool Matches(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return true;
+
+        return Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || PackageId.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || WorkshopId?.Contains(query, StringComparison.Ordinal) == true
+               || Author?.Contains(query, StringComparison.OrdinalIgnoreCase) == true
+               || Mod.Tags.Any(t => t.Contains(query, StringComparison.OrdinalIgnoreCase));
+    }
 }
 
-/// <summary>The Mods page: every detected mod, with texture and conflict counts.</summary>
+/// <summary>
+/// The Mods page: every detected mod, arranged into the sections the Steam Workshop uses,
+/// with a switch that turns a whole mod off.
+/// </summary>
 public sealed class ModsViewModel : ObservableObject
 {
-    private readonly AppServices _app;
-    private string _searchText = string.Empty;
-    private bool _texturesOnly = true;
+    public const string SectionAll = "All";
+    public const string SectionCharacters = "Characters";
+    public const string SectionPortraits = "Portraits";
+    public const string SectionItems = "Items";
+    public const string SectionObjects = "Objects";
 
-    public ModsViewModel(AppServices app, Action<ModPackage> openMod)
+    private const string TagPrefix = "tag:";
+
+    private static readonly string[] ContentSections =
+        { SectionCharacters, SectionPortraits, SectionItems, SectionObjects };
+
+    private readonly AppServices _app;
+    private readonly Action _onChanged;
+
+    /// <summary>Switch positions the user has changed but not yet applied, by mod key.</summary>
+    private readonly Dictionary<string, bool> _pending = new(StringComparer.OrdinalIgnoreCase);
+
+    private string _searchText = string.Empty;
+    private bool _texturesOnly;
+    private string _section = SectionAll;
+    private string? _statusMessage;
+
+    public ModsViewModel(AppServices app, Action<ModPackage> openMod, Action onChanged)
     {
         _app = app;
+        _onChanged = onChanged;
+
+        _texturesOnly = app.Settings.ModsTexturesOnly;
+        _section = string.IsNullOrWhiteSpace(app.Settings.ModsSection)
+            ? SectionAll
+            : app.Settings.ModsSection;
 
         OpenCommand = new RelayCommand(p =>
         {
@@ -92,12 +247,38 @@ public sealed class ModsViewModel : ObservableObject
 
         OpenFolderCommand = new RelayCommand(p =>
             ShellService.OpenFolder((p as ModRowViewModel)?.Directory));
+
+        OpenWorkshopPageCommand = new RelayCommand(p =>
+            ShellService.OpenWorkshopPage((p as ModRowViewModel)?.WorkshopId));
+
+        ToggleDescriptionCommand = new RelayCommand(p =>
+        {
+            if (p is ModRowViewModel row) row.DescriptionExpanded = !row.DescriptionExpanded;
+        });
+
+        SelectSectionCommand = new RelayCommand(p =>
+        {
+            if (p is ModSectionViewModel s) Section = s.Key;
+        });
+
+        ApplyChangesCommand = new RelayCommand(ApplyChanges, () => HasPendingChanges);
+        DiscardChangesCommand = new RelayCommand(DiscardChanges, () => HasPendingChanges);
+        EnableAllShownCommand = new RelayCommand(() => SetAllShown(true));
+        DisableAllShownCommand = new RelayCommand(() => SetAllShown(false));
     }
 
     public ObservableCollection<ModRowViewModel> Items { get; } = new();
+    public ObservableCollection<ModSectionViewModel> Sections { get; } = new();
 
     public RelayCommand OpenCommand { get; }
     public RelayCommand OpenFolderCommand { get; }
+    public RelayCommand OpenWorkshopPageCommand { get; }
+    public RelayCommand ToggleDescriptionCommand { get; }
+    public RelayCommand SelectSectionCommand { get; }
+    public RelayCommand ApplyChangesCommand { get; }
+    public RelayCommand DiscardChangesCommand { get; }
+    public RelayCommand EnableAllShownCommand { get; }
+    public RelayCommand DisableAllShownCommand { get; }
 
     public string SearchText
     {
@@ -109,10 +290,48 @@ public sealed class ModsViewModel : ObservableObject
     public bool TexturesOnly
     {
         get => _texturesOnly;
-        set { if (SetProperty(ref _texturesOnly, value)) Apply(); }
+        set
+        {
+            if (!SetProperty(ref _texturesOnly, value)) return;
+            _app.Settings.ModsTexturesOnly = value;
+            _app.SaveSettings();
+            Apply();
+        }
+    }
+
+    public string Section
+    {
+        get => _section;
+        set
+        {
+            if (!SetProperty(ref _section, value)) return;
+            _app.Settings.ModsSection = value;
+            _app.SaveSettings();
+            Apply();
+        }
     }
 
     public int ResultCount => Items.Count;
+    public int PendingCount => _pending.Count;
+    public bool HasPendingChanges => _pending.Count > 0;
+
+    public string PendingText => _pending.Count == 1
+        ? "1 mod changed, not saved yet"
+        : _pending.Count + " mods changed, not saved yet";
+
+    public string? StatusMessage
+    {
+        get => _statusMessage;
+        private set { SetProperty(ref _statusMessage, value); OnPropertyChanged(nameof(HasStatusMessage)); }
+    }
+
+    public bool HasStatusMessage => !string.IsNullOrEmpty(_statusMessage);
+
+    public bool IsEmpty => Items.Count == 0;
+
+    public string EmptyMessage => _app.Scan.ModCount == 0
+        ? "No mods found yet. Use Refresh to scan your Workshop folder."
+        : "No mods in this section match the current filters.";
 
     /// <summary>Scroll position, kept across navigation. See TextureBrowserViewModel.</summary>
     public double ScrollOffset { get; set; }
@@ -121,43 +340,175 @@ public sealed class ModsViewModel : ObservableObject
     {
         if (!preserveScroll) ScrollOffset = 0;
 
+        foreach (var existing in Items) existing.EnabledChanged -= OnRowEnabledChanged;
         Items.Clear();
 
-        // Conflict counts per mod: how many of its textures another enabled mod also ships.
-        var conflictsByMod = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var uniqueByMod = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var (conflictsByMod, uniqueByMod) = CountPerMod();
+
+        // The candidate set the section counts are taken from. The "textures only" filter
+        // applies here too, so a section never advertises mods the filter is hiding.
+        var candidates = _app.Scan.Mods
+            .Where(m => m.SourceType != TextureSourceType.Vanilla)
+            .Where(m => !_texturesOnly || m.HasTextureReplacements)
+            .Select(m => new ModRowViewModel(
+                m,
+                conflictsByMod.GetValueOrDefault(m.Key),
+                uniqueByMod.GetValueOrDefault(m.Key),
+                _pending.TryGetValue(m.Key, out var pending) ? pending : m.Enabled))
+            .ToList();
+
+        RebuildSections(candidates);
+
+        foreach (var row in candidates
+                     .Where(r => InSection(r, _section))
+                     .Where(r => r.Matches(_searchText))
+                     .OrderByDescending(r => r.TextureCount)
+                     .ThenBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            row.EnabledChanged += OnRowEnabledChanged;
+            Items.Add(row);
+        }
+
+        OnPropertyChanged(nameof(ResultCount));
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(EmptyMessage));
+        RaisePendingProperties();
+    }
+
+    /// <summary>Per-mod conflict and unique counts, taken over the whole index.</summary>
+    private (Dictionary<string, int> Conflicts, Dictionary<string, int> Unique) CountPerMod()
+    {
+        var conflicts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var unique = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in _app.Scan.Index.Values)
         {
             foreach (var v in entry.Versions)
             {
-                var map = entry.HasConflict ? conflictsByMod : uniqueByMod;
+                var map = entry.HasConflict ? conflicts : unique;
                 map[v.ModKey] = map.GetValueOrDefault(v.ModKey) + 1;
             }
         }
 
-        var mods = _app.Scan.Mods.AsEnumerable();
-        if (_texturesOnly) mods = mods.Where(m => m.HasTextureReplacements);
+        return (conflicts, unique);
+    }
 
-        if (!string.IsNullOrWhiteSpace(_searchText))
+    /// <summary>
+    /// Builds the section list from what is installed. A section with no mods is left out
+    /// rather than shown empty, and the counts come from the same candidate set the list
+    /// itself is drawn from, so a chip can never promise more than it delivers.
+    /// </summary>
+    private void RebuildSections(IReadOnlyList<ModRowViewModel> candidates)
+    {
+        Sections.Clear();
+        Sections.Add(new ModSectionViewModel(SectionAll, "All mods", "Content")
         {
-            var q = _searchText;
-            mods = mods.Where(m =>
-                m.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
-                || m.WorkshopId?.Contains(q, StringComparison.Ordinal) == true
-                || m.Author?.Contains(q, StringComparison.OrdinalIgnoreCase) == true);
+            Count = candidates.Count,
+        });
+
+        foreach (var key in ContentSections)
+        {
+            var count = candidates.Count(r => r.InContentSection(key));
+            if (count == 0) continue;
+            Sections.Add(new ModSectionViewModel(key, key, "Content") { Count = count });
         }
 
-        foreach (var mod in mods
-                     .OrderByDescending(m => m.TextureCount)
-                     .ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase))
+        foreach (var tag in ModSection.All)
         {
-            Items.Add(new ModRowViewModel(
-                mod,
-                conflictsByMod.GetValueOrDefault(mod.Key),
-                uniqueByMod.GetValueOrDefault(mod.Key)));
+            var count = candidates.Count(r => r.Sections.Contains(tag, StringComparer.OrdinalIgnoreCase));
+            if (count == 0) continue;
+            Sections.Add(new ModSectionViewModel(TagPrefix + tag, tag, "Workshop tags") { Count = count });
         }
 
-        OnPropertyChanged(nameof(ResultCount));
+        // A section can disappear when its last mod is unsubscribed. Fall back to All so
+        // the page is never stuck showing nothing with no way back.
+        if (Sections.All(s => s.Key != _section))
+        {
+            _section = SectionAll;
+            _app.Settings.ModsSection = SectionAll;
+            OnPropertyChanged(nameof(Section));
+        }
+
+        foreach (var s in Sections) s.IsSelected = s.Key == _section;
+    }
+
+    private static bool InSection(ModRowViewModel row, string section)
+    {
+        if (section == SectionAll) return true;
+
+        if (section.StartsWith(TagPrefix, StringComparison.Ordinal))
+            return row.Sections.Contains(section[TagPrefix.Length..], StringComparer.OrdinalIgnoreCase);
+
+        return row.InContentSection(section);
+    }
+
+    // ---- enabling and disabling whole mods ----
+
+    private void OnRowEnabledChanged(ModRowViewModel row)
+    {
+        if (row.Enabled == row.Mod.Enabled) _pending.Remove(row.Mod.Key);
+        else _pending[row.Mod.Key] = row.Enabled;
+
+        StatusMessage = null;
+        RaisePendingProperties();
+    }
+
+    private void SetAllShown(bool enabled)
+    {
+        foreach (var row in Items.Where(r => r.CanToggle)) row.Enabled = enabled;
+    }
+
+    private void ApplyChanges()
+    {
+        if (_pending.Count == 0 || _app.Paths is null) return;
+
+        var byKey = _app.Scan.Mods.ToDictionary(m => m.Key, StringComparer.OrdinalIgnoreCase);
+        var changes = new List<(ModPackage Mod, bool Enabled)>();
+
+        foreach (var pair in _pending)
+            if (byKey.TryGetValue(pair.Key, out var mod)) changes.Add((mod, pair.Value));
+
+        var off = changes.Count(c => !c.Enabled);
+        var on = changes.Count - off;
+
+        var answer = MessageBox.Show(
+            "Write these changes to:\n" + _app.Paths.LoadOrderFile + "\n\n"
+            + off + " mod" + (off == 1 ? "" : "s") + " off, "
+            + on + " mod" + (on == 1 ? "" : "s") + " on.\n\n"
+            + "A timestamped backup of the current file is taken first. "
+            + "Elin picks the change up the next time it starts.",
+            "Apply mod changes",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question,
+            MessageBoxResult.OK);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        var result = _app.ApplyModEnabledStates(changes);
+        StatusMessage = result.Message;
+
+        if (!result.Success) return;
+
+        _pending.Clear();
+        Apply(preserveScroll: true);
+        _onChanged();
+    }
+
+    private void DiscardChanges()
+    {
+        _pending.Clear();
+        StatusMessage = "Changes discarded.";
+        Apply(preserveScroll: true);
+    }
+
+    private void RaisePendingProperties()
+    {
+        OnPropertyChanged(nameof(PendingCount));
+        OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(PendingText));
+        ApplyChangesCommand.RaiseCanExecuteChanged();
+        DiscardChangesCommand.RaiseCanExecuteChanged();
+
+        foreach (var row in Items) row.RefreshPendingState();
     }
 }

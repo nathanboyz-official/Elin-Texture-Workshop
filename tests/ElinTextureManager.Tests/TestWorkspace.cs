@@ -63,6 +63,48 @@ public sealed class TestWorkspace : IDisposable
         return modDir;
     }
 
+    /// <summary>Adds Workshop tags to a mod's package.xml, as a published mod carries them.</summary>
+    public void SetTags(string workshopId, string tags)
+    {
+        var file = Path.Combine(WorkshopRoot, workshopId, "package.xml");
+        var xml = File.ReadAllText(file);
+        xml = xml.Replace("  <version>", $"  <tags>{tags}</tags>\n  <version>");
+        File.WriteAllText(file, xml, new UTF8Encoding(false));
+    }
+
+    /// <summary>Adds portrait replacements to a mod, in the folder Elin reads them from.</summary>
+    public void AddPortraits(string workshopId, params (string fileName, string content)[] portraits)
+    {
+        var dir = Path.Combine(WorkshopRoot, workshopId, "Portrait");
+        Directory.CreateDirectory(dir);
+
+        foreach (var (fileName, content) in portraits)
+            WritePng(Path.Combine(dir, fileName), content);
+    }
+
+    /// <summary>
+    /// Writes a file into the base game package, so it is the original a mod replaces.
+    /// <paramref name="relative"/> is relative to Package\_Elona, e.g. "Portrait\UN_x.png".
+    /// </summary>
+    public void AddVanillaImage(string relative, string content)
+    {
+        var elona = Path.Combine(ElinRoot, "Package", "_Elona");
+        var target = Path.Combine(elona, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+        var packageXml = Path.Combine(elona, "package.xml");
+        if (!File.Exists(packageXml))
+        {
+            File.WriteAllText(packageXml,
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                + "<Meta>\n  <title>Elin Core</title>\n  <id>elin_core1</id>\n"
+                + "  <builtin>true</builtin>\n  <loadPriority>-100</loadPriority>\n</Meta>\n",
+                new UTF8Encoding(false));
+        }
+
+        WritePng(target, content);
+    }
+
     /// <summary>Adds a file inside a sub-folder of Texture Replace (a variant set).</summary>
     public void AddVariant(string workshopId, string variantFolder, string fileName, string content)
     {

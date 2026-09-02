@@ -129,6 +129,19 @@
                 </StackPanel>
             </Border>
 
+            <!-- ============ NETWORK ============ -->
+            <TextBlock Text="GAME NEWS" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <CheckBox Content="Let the News page fetch Elin's announcements from Steam"
+                              IsChecked="{Binding EnableSteamNews}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Text="This is the only thing the application sends over the network. It asks api.steampowered.com for the news of app 2135150 and nothing else - no account, no identifiers, no API key. Turn it off and the News page shows the last fetch it cached." />
+                </StackPanel>
+            </Border>
+
             <!-- ============ APPEARANCE ============ -->
             <TextBlock Text="THUMBNAIL SIZE" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
 

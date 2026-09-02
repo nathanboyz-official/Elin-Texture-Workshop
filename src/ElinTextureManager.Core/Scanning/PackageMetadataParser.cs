@@ -50,6 +50,8 @@ public static class PackageMetadataParser
             mod.Description = Value(meta, "description")?.Trim();
             mod.Version = Value(meta, "version")?.Trim();
 
+            ParseTags(mod, Value(meta, "tags"));
+
             if (bool.TryParse(Value(meta, "builtin")?.Trim(), out var builtin))
                 mod.Builtin = builtin;
 
@@ -60,6 +62,27 @@ public static class PackageMetadataParser
         {
             mod.MetadataMissing = true;
             AppLog.Warn($"Malformed package.xml in {mod.Directory}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Splits the &lt;tags&gt; element into individual Workshop tags. Authors separate them
+    /// with commas and occasionally a newline, and the raw spelling is kept here - it is
+    /// normalised into sections by <see cref="Model.ModSection"/>, not by the parser.
+    /// </summary>
+    private static void ParseTags(ModPackage mod, string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return;
+
+        var parts = raw.Split(
+            new[] { ',', ';', '\n', '\r' },
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var tag in parts)
+        {
+            if (tag.Length == 0) continue;
+            if (mod.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase)) continue;
+            mod.Tags.Add(tag);
         }
     }
 

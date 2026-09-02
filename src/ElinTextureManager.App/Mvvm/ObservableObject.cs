@@ -46,6 +46,13 @@ public sealed class RelayCommand : ICommand
     public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
 
     public void Execute(object? parameter) => _execute(parameter);
+
+    /// <summary>
+    /// Asks WPF to re-evaluate CanExecute now. The event above rides on
+    /// CommandManager.RequerySuggested, which fires on input and focus changes but not
+    /// when a view model changes state on its own.
+    /// </summary>
+    public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
 }
 
 /// <summary>

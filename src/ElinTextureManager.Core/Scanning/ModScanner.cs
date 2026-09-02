@@ -21,6 +21,13 @@ public sealed class ScanOptions
 
     /// <summary>Also scan Elin\Package for hand-installed mods.</summary>
     public bool IncludeLocalPackages { get; set; } = true;
+
+    /// <summary>
+    /// Also index a mod's "Portrait" folder. Elin packages mirror the layout of
+    /// Package\_Elona, so a mod replacing portraits ships them there rather than in
+    /// "Texture Replace"; without this such mods are invisible.
+    /// </summary>
+    public bool IncludePortraits { get; set; } = true;
 }
 
 /// <summary>
@@ -186,8 +193,24 @@ public sealed class ModScanner
         PackageMetadataParser.Apply(mod, Path.Combine(dir, "package.xml"));
         mod.PreviewImagePath = FindPreviewImage(dir);
 
-        foreach (var textureRoot in FindTextureReplaceFolders(dir, result))
+        // The packages shipped with the game (_Elona, _ModdingKit, ...) declare
+        // builtin=true. Their images ARE the originals, not replacements of anything, so
+        // indexing them as versions would turn every replaced portrait into a false
+        // conflict. They are surfaced through VanillaAssets instead.
+        if (mod.Builtin)
+        {
+            mod.SourceType = TextureSourceType.Vanilla;
+            return mod;
+        }
+
+        foreach (var textureRoot in FindReplacementFolders(dir, ElinPaths.TextureReplaceFolder, result))
             CollectTextures(mod, textureRoot, result);
+
+        if (_options.IncludePortraits)
+        {
+            foreach (var portraitRoot in FindReplacementFolders(dir, ElinPaths.PortraitFolder, result))
+                CollectPortraits(mod, portraitRoot, result);
+        }
 
         return mod;
     }
@@ -204,10 +227,11 @@ public sealed class ModScanner
     }
 
     /// <summary>
-    /// Finds "Texture Replace" folders. In every mod observed they sit directly under the
-    /// mod root, but the search is depth-limited rather than fixed so unusual layouts work.
+    /// Finds a named replacement folder ("Texture Replace" or "Portrait"). In every mod
+    /// observed they sit directly under the mod root, but the search is depth-limited
+    /// rather than fixed so unusual layouts still work.
     /// </summary>
-    private IEnumerable<string> FindTextureReplaceFolders(string root, ScanResult result)
+    private IEnumerable<string> FindReplacementFolders(string root, string wanted, ScanResult result)
     {
         var found = new List<string>();
         var queue = new Queue<(string dir, int depth)>();
@@ -230,11 +254,14 @@ public sealed class ModScanner
             {
                 var name = Path.GetFileName(sub);
 
-                if (string.Equals(name, ElinPaths.TextureReplaceFolder, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(name, wanted, StringComparison.OrdinalIgnoreCase))
                 {
                     found.Add(sub);
                     continue; // Do not descend further; its children are variants.
                 }
+
+                // Never look for one replacement folder inside the other.
+                if (IsReplacementFolderName(name)) continue;
 
                 if (IsReparsePoint(sub)) continue;
                 queue.Enqueue((sub, depth + 1));
@@ -243,6 +270,10 @@ public sealed class ModScanner
 
         return found;
     }
+
+    private static bool IsReplacementFolderName(string name) =>
+        string.Equals(name, ElinPaths.TextureReplaceFolder, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, ElinPaths.PortraitFolder, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsReparsePoint(string dir)
     {
@@ -256,7 +287,8 @@ public sealed class ModScanner
     private void CollectTextures(ModPackage mod, string textureRoot, ScanResult result)
     {
         // Active files: directly inside "Texture Replace".
-        AddFiles(mod, textureRoot, textureRoot, isVariant: false, variantName: null, result);
+        AddFiles(mod, textureRoot, ReplacementKind.TextureReplace,
+            isVariant: false, variantName: null, result);
 
         // Variants: one level of sub-folders (e.g. "unused", "1_Regular_Tights").
         string[] subs;
@@ -266,11 +298,23 @@ public sealed class ModScanner
         foreach (var sub in subs)
         {
             if (IsReparsePoint(sub)) continue;
-            AddFiles(mod, sub, textureRoot, isVariant: true, variantName: Path.GetFileName(sub), result);
+            AddFiles(mod, sub, ReplacementKind.TextureReplace,
+                isVariant: true, variantName: Path.GetFileName(sub), result);
         }
     }
 
-    private void AddFiles(ModPackage mod, string dir, string textureRoot,
+    /// <summary>
+    /// Indexes a mod's "Portrait" folder. Portraits are matched by their whole vanilla
+    /// file name, and sub-folders there are not a variant convention the game uses, so
+    /// only the files sitting directly in the folder are taken.
+    /// </summary>
+    private void CollectPortraits(ModPackage mod, string portraitRoot, ScanResult result)
+    {
+        AddFiles(mod, portraitRoot, ReplacementKind.Portrait,
+            isVariant: false, variantName: null, result);
+    }
+
+    private void AddFiles(ModPackage mod, string dir, ReplacementKind kind,
         bool isVariant, string? variantName, ScanResult result)
     {
         string[] files;
@@ -294,12 +338,15 @@ public sealed class ModScanner
                 {
                     FullPath = fi.FullName,
                     FileName = name,
-                    Identity = TextureIdentity.Parse(name),
+                    Identity = kind == ReplacementKind.Portrait
+                        ? TextureIdentity.ForPortrait(name)
+                        : TextureIdentity.Parse(name),
                     RelativePath = Relative(mod.Directory, fi.FullName),
                     ModKey = mod.Key,
                     ModName = mod.Name,
                     WorkshopId = mod.WorkshopId,
                     SourceType = mod.SourceType,
+                    Kind = kind,
                     IsVariant = isVariant,
                     VariantName = variantName,
                     FileSize = fi.Length,
