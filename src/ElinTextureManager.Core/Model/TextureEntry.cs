@@ -16,7 +16,38 @@ public sealed class TextureEntry
     /// <summary>The ID without its index namespace, for display. See TextureIdentity.</summary>
     public string DisplayId => TextureIdentity.Display(TextureId);
 
-    public string Category => TextureCategory.ForPrefix(Prefix);
+    /// <summary>
+    /// Portraits are a category by virtue of the folder they live in; their prefix carries
+    /// the group (Female, Male, Background …) instead.
+    /// </summary>
+    public string Category => Kind == ReplacementKind.Portrait
+        ? TextureCategory.Portraits
+        : TextureCategory.ForPrefix(Prefix);
+
+    /// <summary>
+    /// True for the "-overlay" layer that belongs on top of another portrait. Elin draws
+    /// the two together, so an overlay is not a picture in its own right - it is shown
+    /// inside its base portrait rather than as its own tile in the grid.
+    /// </summary>
+    public bool IsOverlay => Kind == ReplacementKind.Portrait
+                             && PortraitGroup.IsOverlay(DisplayId);
+
+    /// <summary>
+    /// The overlay layer belonging to this portrait, linked during index construction.
+    /// Null when the portrait has none.
+    /// </summary>
+    public TextureEntry? Overlay { get; set; }
+
+    public bool HasOverlay => Overlay is not null;
+
+    /// <summary>
+    /// Set on an overlay once it has been attached to its base portrait. Only an attached
+    /// overlay is hidden from the grid; a stray one stays visible, because a picture with
+    /// nothing to attach it to still has to be reachable.
+    /// </summary>
+    public string? OverlayOwnerId { get; set; }
+
+    public bool IsAttachedOverlay => OverlayOwnerId is not null;
 
     /// <summary>Active versions - files Elin actually loads, one per mod that ships it.</summary>
     public List<TextureFile> Versions { get; } = new();

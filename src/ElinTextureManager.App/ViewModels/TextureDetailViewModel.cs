@@ -171,6 +171,27 @@ public sealed class TextureDetailViewModel : ObservableObject
     public bool AnyMatchesOriginal => Original?.File.Hash is not null
                                       && Versions.Any(v => v.IsIdenticalToOriginal);
 
+    /// <summary>
+    /// The "-overlay" layer Elin draws on top of this portrait. It has no tile of its own
+    /// in the grid - it is not a picture in its own right - so every version of it is
+    /// offered here, selectable exactly like the portrait's own versions.
+    /// </summary>
+    public List<TextureVersionViewModel> OverlayVersions { get; private set; } = new();
+
+    public bool HasOverlay => Entry.HasOverlay && OverlayVersions.Count > 0;
+
+    /// <summary>The overlay's own ID, so it is clear which file selecting one writes.</summary>
+    public string? OverlayId => Entry.Overlay?.DisplayId;
+
+    public string OverlaySummary => Entry.Overlay is null
+        ? string.Empty
+        : Entry.Overlay.HasConflict
+            ? $"{Entry.Overlay.SourceCount} mods supply this overlay"
+            : "1 source";
+
+    /// <summary>True when this entry is itself an overlay reached directly.</summary>
+    public bool IsOverlay => Entry.IsOverlay;
+
     public TextureWinner Winner { get; private set; } = TextureWinner.None;
 
     public TextureVersionViewModel? WinnerVersion { get; private set; }
@@ -272,6 +293,7 @@ public sealed class TextureDetailViewModel : ObservableObject
         Versions = Entry.Versions.Select(Build).ToList();
         Variants = Entry.Variants.Select(Build).ToList();
         Original = Entry.Vanilla is null ? null : Build(Entry.Vanilla);
+        OverlayVersions = BuildOverlayVersions();
         WinnerVersion = Versions.FirstOrDefault(v => v.IsWinner);
 
         OnPropertyChanged(nameof(Versions));
@@ -281,6 +303,10 @@ public sealed class TextureDetailViewModel : ObservableObject
         OnPropertyChanged(nameof(HasOriginal));
         OnPropertyChanged(nameof(OriginalNote));
         OnPropertyChanged(nameof(AnyMatchesOriginal));
+        OnPropertyChanged(nameof(OverlayVersions));
+        OnPropertyChanged(nameof(HasOverlay));
+        OnPropertyChanged(nameof(OverlayId));
+        OnPropertyChanged(nameof(OverlaySummary));
         OnPropertyChanged(nameof(WinnerVersion));
         OnPropertyChanged(nameof(WinnerLabel));
         OnPropertyChanged(nameof(ConfidenceLabel));
@@ -375,11 +401,42 @@ public sealed class TextureDetailViewModel : ObservableObject
         _onChanged();
     }
 
+    /// <summary>
+    /// The overlay's versions, built with their own winner and override state so that
+    /// selecting one behaves exactly as it would on a page of its own.
+    /// </summary>
+    private List<TextureVersionViewModel> BuildOverlayVersions()
+    {
+        var overlay = Entry.Overlay;
+        if (overlay is null) return new List<TextureVersionViewModel>();
+
+        var winner = _app.Winners.GetValueOrDefault(overlay.TextureId) ?? TextureWinner.None;
+        var chosen = _app.Selections.Get(overlay.TextureId);
+        var originalHash = overlay.Vanilla?.Hash;
+
+        var files = overlay.Versions.AsEnumerable();
+        if (overlay.Vanilla is not null) files = files.Append(overlay.Vanilla);
+
+        return files.Select(f => new TextureVersionViewModel(
+                f,
+                isChosen: chosen is not null
+                          && string.Equals(f.FullPath, chosen.SourcePath, StringComparison.OrdinalIgnoreCase),
+                isWinner: winner.File is not null
+                          && string.Equals(f.FullPath, winner.File.FullPath, StringComparison.OrdinalIgnoreCase),
+                isIdenticalToWinner: false,
+                isIdenticalToOriginal: originalHash is not null
+                                       && f.Hash is not null
+                                       && f.SourceType != TextureSourceType.Vanilla
+                                       && string.Equals(f.Hash, originalHash, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+    }
+
     /// <summary>Everything the A/B comparison can be pointed at, the original included.</summary>
     private IEnumerable<TextureVersionViewModel> AllComparable()
     {
         foreach (var v in Versions) yield return v;
         foreach (var v in Variants) yield return v;
+        foreach (var v in OverlayVersions) yield return v;
         if (Original is not null) yield return Original;
     }
 

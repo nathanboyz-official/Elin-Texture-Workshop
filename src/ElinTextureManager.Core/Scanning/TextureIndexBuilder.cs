@@ -35,6 +35,8 @@ public static class TextureIndexBuilder
             }
         }
 
+        LinkPortraitOverlays(result);
+
         // A texture that only ever appears in variant sub-folders still deserves an entry,
         // but it must not look like an active conflict.
         foreach (var entry in result.Index.Values)
@@ -43,6 +45,30 @@ public static class TextureIndexBuilder
                 string.Compare(a.ModName, b.ModName, StringComparison.CurrentCultureIgnoreCase));
             entry.Variants.Sort(static (a, b) =>
                 string.Compare(a.ModName, b.ModName, StringComparison.CurrentCultureIgnoreCase));
+        }
+    }
+
+    /// <summary>
+    /// Hangs each "-overlay" portrait off the portrait it belongs to, so the grid can show
+    /// one tile per character instead of two. Every overlay observed - all 403 of them
+    /// across the shipped portraits and every installed mod - has a base of the same name;
+    /// one that does not is left as an ordinary entry rather than being hidden, because a
+    /// picture with nothing to attach it to still has to be reachable.
+    /// </summary>
+    private static void LinkPortraitOverlays(ScanResult result)
+    {
+        foreach (var entry in result.Index.Values)
+        {
+            if (!entry.IsOverlay) continue;
+
+            var baseName = PortraitGroup.BaseNameOf(entry.DisplayId);
+            if (baseName is null) continue;
+
+            if (!result.Index.TryGetValue(
+                    TextureIdentity.PortraitNamespace + baseName, out var owner)) continue;
+
+            owner.Overlay = entry;
+            entry.OverlayOwnerId = owner.TextureId;
         }
     }
 

@@ -51,6 +51,10 @@ public sealed record TextureIdentity(string TextureId, string Prefix, int? Numer
     /// Identity for a file in a "Portrait" folder. Portraits are addressed by their whole
     /// vanilla file name ("UN_ashland.png", "special_f-Alice-TCO.png"), which has no
     /// index to parse, so the name is kept intact under the portrait namespace.
+    ///
+    /// The prefix carries the portrait's group (Female, Male, Background …) rather than a
+    /// constant, so the grid's prefix filter says something useful about 2000 portraits.
+    /// The category does not come from the prefix for portraits - see TextureFile.Category.
     /// </summary>
     public static TextureIdentity ForPortrait(string fileName)
     {
@@ -61,7 +65,7 @@ public sealed record TextureIdentity(string TextureId, string Prefix, int? Numer
         if (string.IsNullOrEmpty(name))
             return new TextureIdentity(string.Empty, string.Empty, null);
 
-        return new TextureIdentity(PortraitNamespace + name, "portrait", null);
+        return new TextureIdentity(PortraitNamespace + name, PortraitGroup.ForName(name), null);
     }
 
     /// <summary>Strips the index namespace from an ID so the user sees the plain name.</summary>

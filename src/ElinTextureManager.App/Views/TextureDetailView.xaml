@@ -311,6 +311,34 @@
                 </StackPanel>
             </Grid>
 
+            <!-- ============ OVERLAY ============ -->
+            <StackPanel Visibility="{Binding HasOverlay, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal" Margin="0,24,0,10">
+                    <TextBlock Text="OVERLAY LAYER" Style="{StaticResource SectionHeader}"
+                               Margin="0" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Pill}" Margin="10,0,0,0"
+                            Background="{StaticResource SurfaceHoverBrush}">
+                        <TextBlock Text="{Binding OverlayId}" FontSize="9.5"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                    </Border>
+                    <TextBlock Text="{Binding OverlaySummary}" Style="{StaticResource SubtleText}"
+                               Margin="10,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Style="{StaticResource SubtleText}" Margin="0,0,0,10" MaxWidth="760"
+                           HorizontalAlignment="Left"
+                           Text="Elin draws this on top of the portrait above, so it is not a picture in its own right and has no tile of its own in the grid. It is still a separate file: selecting a version here overrides the overlay, not the portrait." />
+
+                <ItemsControl ItemsSource="{Binding OverlayVersions}"
+                              ItemTemplate="{StaticResource VersionCard}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+
             <!-- ============ THE ORIGINAL ============ -->
             <TextBlock Text="ORIGINAL (BEFORE ANY MOD)" Style="{StaticResource SectionHeader}"
                        Margin="0,24,0,10" />

@@ -46,8 +46,13 @@ Or, when the problem is a whole mod rather than one texture:
 ## Features
 
 **Texture browser**
-- Grid of every replacement texture, grouped by category (Characters, Items, Portraits,
-  Objects, and any other prefixes found)
+- Grid of every replacement texture and portrait, grouped by category (Characters, Items,
+  Portraits, Objects, and any other prefixes found)
+- Portraits are grouped further by what their names already encode — Female, Male,
+  Neutral, Named and Background — and the prefix filter lists only what the page you are
+  on actually contains
+- Overlay layers (`c_f-1-overlay`) are folded into the portrait they belong to instead of
+  taking a tile of their own
 - Transparency shown against a checkerboard, nearest-neighbour scaling for pixel art,
   aspect ratio always preserved, sprite sheets shown whole
 - Conflict badges, override badges, and the mod that currently wins
@@ -184,6 +189,52 @@ replacement points a texture mod uses:
 The same file name in each folder is two different images, so portrait IDs are namespaced
 internally and an override is written back into whichever folder it came from. You never
 see the namespace; the UI shows the plain name.
+
+### Portrait groups and overlays
+
+"Portraits" on its own is two thousand entries, so portrait names are read for what they
+already encode. The structure was confirmed against the 473 files the game ships and every
+portrait the installed mods add:
+
+| Name | Group | |
+| --- | --- | --- |
+| `c_f-1`, `special_f_younglady` | Female | an `_f` segment |
+| `c_m-12`, `guard_m-2` | Male | an `_m` segment |
+| `special_n-yeek` | Neutral | `_n` — slimes, animals, machines |
+| `UN_ashland` | Named | the game's prefix for unique NPCs |
+| `BG_3`, `BGF_1` | Background | not a character at all |
+
+The gender letter has to be a whole segment — an underscore, then `f`/`m`/`n`, then a
+separator — which is what keeps `UN_azurlane_IJN_Ayanami` out of the neutral group. A
+gender marker beats the `UN_` prefix, and a name that fits nothing lands in **Other**
+rather than disappearing.
+
+The group is carried as the portrait's *prefix*, so the grid's prefix filter becomes the
+grouping. Portraits are a category by virtue of the folder they live in, so the category
+is no longer derived from the prefix.
+
+**Overlays.** `c_f-1-overlay.png` is the layer Elin draws on top of `c_f-1.png` — hair,
+usually. It is not a picture in its own right, so it gets no tile of its own: it is folded
+into the portrait it belongs to and offered on that portrait's page, tagged **OVERLAY**.
+On a typical install that is 393 fewer tiles to scroll past.
+
+It is still a separate file, so selecting a version on the overlay section overrides the
+overlay rather than the portrait. Two consequences are handled deliberately:
+
+- A conflict on an overlay is reported against the portrait it belongs to. Otherwise two
+  mods fighting over an overlay would be counted in the sidebar but unreachable.
+- An overlay with no base — none exist today, but nothing guarantees that — keeps its own
+  tile rather than being hidden with no way to reach it.
+
+### Only the prefixes that are there
+
+The prefix filter is built from what the current page can actually show, not from the
+whole library. The Portraits page offers Female, Male, Neutral, Named, Background and
+Other; the Characters page offers `objC`, `objCL`, `objCLL`. Offering `objC` on the
+Portraits page is an option whose only possible result is an empty grid.
+
+Changing page drops a prefix that does not exist on the new one, so a filter carried over
+from somewhere else cannot silently empty the grid.
 
 ### Workshop tags
 
@@ -435,6 +486,15 @@ writes. Neither appears in `loadorder.txt`, so there is no flag to set.
 That is expected, and the panel explains it: `objC_*` sprites live inside Elin's packed
 sprite atlas rather than as loose files. Portraits, item textures and the whole sheets do
 show their original. See [Which originals are available](#which-originals-are-available).
+
+**A portrait I can see in game is not in the grid**
+If its name ends in `-overlay` it is a layer rather than a picture, and it lives on the
+page of the portrait it belongs to — search for the name without the suffix. See
+[Portrait groups and overlays](#portrait-groups-and-overlays).
+
+**The prefix list is shorter than it used to be**
+It is built from the page you are on. A prefix that no entry on this page uses is not
+offered, because selecting it could only ever produce an empty grid.
 
 **A section is missing from the Mods page**
 Sections are only shown when at least one installed mod is in them, so the counts never

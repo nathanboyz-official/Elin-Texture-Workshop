@@ -11,8 +11,22 @@ public sealed class ScanResult
     public int TextureModCount => Mods.Count(m => m.HasTextureReplacements);
     public int TextureFileCount => Mods.Sum(m => m.TextureCount);
     public int UniqueTextureCount => Index.Count;
-    public int ConflictCount => Index.Values.Count(e => e.HasConflict);
 
+    public int ConflictCount => Conflicts.Count();
+
+    /// <summary>
+    /// The conflicts worth showing, defined once so the sidebar count and the Conflicts
+    /// page can never disagree.
+    ///
+    /// A portrait overlay has no tile of its own, so a conflict on one is reported against
+    /// the portrait it belongs to - otherwise two mods fighting over an overlay would be
+    /// counted but unreachable.
+    /// </summary>
     public IEnumerable<TextureEntry> Conflicts =>
-        Index.Values.Where(e => e.HasConflict);
+        Index.Values.Where(IsConflict);
+
+    /// <summary>Whether an entry counts as a conflict for display purposes.</summary>
+    public static bool IsConflict(TextureEntry entry) =>
+        !entry.IsAttachedOverlay
+        && (entry.HasConflict || entry.Overlay?.HasConflict == true);
 }

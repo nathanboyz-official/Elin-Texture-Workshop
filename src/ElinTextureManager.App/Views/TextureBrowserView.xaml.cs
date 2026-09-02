@@ -40,10 +40,4 @@ public partial class TextureBrowserView : UserControl
         var target = vm.ScrollOffset;
         ScrollMemory.ReapplyAfterRebuild(_scroller, target, offset => vm.ScrollOffset = offset);
     }
-
-    private void PrefixCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (DataContext is TextureBrowserViewModel vm && sender is ComboBox combo)
-            vm.SetPrefixFromDisplay(combo.SelectedItem as string);
-    }
 }

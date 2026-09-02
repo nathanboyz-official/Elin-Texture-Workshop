@@ -44,6 +44,16 @@
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource SelectedBrush}" />
                                     </Border>
+
+                                    <!-- Only shown when there is no override badge to clash with. -->
+                                    <Border Style="{StaticResource Pill}" HorizontalAlignment="Right"
+                                            Background="{StaticResource SurfaceHoverBrush}"
+                                            ToolTip="This portrait comes with an overlay layer, shown on its page"
+                                            Visibility="{Binding ShowOverlayBadge,
+                                                        Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="OVERLAY" FontSize="9.5"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </Border>
                                 </Grid>
 
                                 <!-- Caption -->
@@ -150,8 +160,7 @@
                            VerticalAlignment="Center" Margin="0,0,8,0" />
                 <ComboBox x:Name="PrefixCombo" MinWidth="150" Margin="0,0,14,0"
                           ItemsSource="{Binding AvailablePrefixes}"
-                          SelectedIndex="0"
-                          SelectionChanged="PrefixCombo_SelectionChanged" />
+                          SelectedItem="{Binding SelectedPrefixDisplay, Mode=TwoWay}" />
 
                 <Button Content="Clear filters" Style="{StaticResource SubtleButton}"
                         Command="{Binding ClearFiltersCommand}" />

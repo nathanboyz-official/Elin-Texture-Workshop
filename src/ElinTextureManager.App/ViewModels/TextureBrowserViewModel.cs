@@ -46,13 +46,33 @@ public sealed class TextureBrowserViewModel : ObservableObject
         {
             SearchText = string.Empty;
             Scope = TextureScope.All;
-            PrefixFilter = null;
+            SelectedPrefixDisplay = AllPrefixes;
         });
     }
 
     public ObservableCollection<TextureCardViewModel> Items { get; } = new();
 
     public ObservableCollection<string> AvailablePrefixes { get; } = new();
+
+    /// <summary>The "no filter" row, kept in one place so the view and the list agree.</summary>
+    public const string AllPrefixes = "All prefixes";
+
+    private string _selectedPrefixDisplay = AllPrefixes;
+
+    /// <summary>
+    /// Bound to the combo box. Held here rather than left to the control's own selection
+    /// because the list is rebuilt whenever the page changes, and a rebuilt list would
+    /// otherwise leave the box showing nothing at all.
+    /// </summary>
+    public string SelectedPrefixDisplay
+    {
+        get => _selectedPrefixDisplay;
+        set
+        {
+            if (!SetProperty(ref _selectedPrefixDisplay, value ?? AllPrefixes)) return;
+            SetPrefixFromDisplay(_selectedPrefixDisplay);
+        }
+    }
 
     public RelayCommand OpenCommand { get; }
     public RelayCommand ClearFiltersCommand { get; }
@@ -133,20 +153,10 @@ public sealed class TextureBrowserViewModel : ObservableObject
 
         Items.Clear();
 
-        var entries = _app.Scan.Index.Values.AsEnumerable();
-
-        if (_scope == TextureScope.ConflictsOnly)
-            entries = entries.Where(e => e.HasConflict);
-
-        if (_categoryFilter is not null)
-            entries = entries.Where(e => string.Equals(e.Category, _categoryFilter, StringComparison.Ordinal));
+        var entries = Scoped();
 
         if (_prefixFilter is not null)
             entries = entries.Where(e => string.Equals(e.Prefix, _prefixFilter, StringComparison.OrdinalIgnoreCase));
-
-        if (_modFilter is not null)
-            entries = entries.Where(e => e.AllSources.Any(v =>
-                string.Equals(v.ModKey, _modFilter, StringComparison.OrdinalIgnoreCase)));
 
         foreach (var entry in entries.OrderBy(e => e.Prefix, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(e => e.NumericId ?? int.MaxValue)
@@ -174,18 +184,71 @@ public sealed class TextureBrowserViewModel : ObservableObject
         OnPropertyChanged(nameof(CardHeight));
     }
 
-    /// <summary>Refreshes the prefix filter list from the current scan.</summary>
+    /// <summary>
+    /// Everything this page is showing before the prefix filter is applied: the scope, the
+    /// category and the mod, with attached portrait overlays left out.
+    ///
+    /// An overlay is a layer Elin draws on top of another portrait, not a picture in its
+    /// own right, so it belongs inside its base rather than beside it in the grid. It is
+    /// still reachable - the base portrait's page offers it - and a stray overlay with no
+    /// base is left visible rather than being hidden with no way to reach it.
+    /// </summary>
+    private IEnumerable<TextureEntry> Scoped()
+    {
+        var entries = _app.Scan.Index.Values.Where(e => !e.IsAttachedOverlay);
+
+        if (_scope == TextureScope.ConflictsOnly)
+            entries = entries.Where(ScanResult.IsConflict);
+
+        if (_categoryFilter is not null)
+            entries = entries.Where(e => string.Equals(e.Category, _categoryFilter, StringComparison.Ordinal));
+
+        if (_modFilter is not null)
+            entries = entries.Where(e => e.AllSources.Any(v =>
+                string.Equals(v.ModKey, _modFilter, StringComparison.OrdinalIgnoreCase)));
+
+        return entries;
+    }
+
+    /// <summary>
+    /// Rebuilds the prefix filter from what this page can actually show, rather than from
+    /// the whole library. Offering "objC" on the Portraits page is an option that can only
+    /// ever produce an empty grid.
+    /// </summary>
     public void RefreshPrefixes()
     {
+        var previous = _prefixFilter;
+
         AvailablePrefixes.Clear();
         AvailablePrefixes.Add("All prefixes");
 
-        foreach (var (prefix, count) in Core.Scanning.TextureIndexBuilder.PrefixHistogram(_app.Scan))
-            AvailablePrefixes.Add($"{prefix} ({count})");
+        var histogram = Scoped()
+            .GroupBy(e => e.Prefix, StringComparer.OrdinalIgnoreCase)
+            .Select(g => (Prefix: g.Key, Count: g.Count()))
+            .OrderByDescending(t => t.Count)
+            .ThenBy(t => t.Prefix, StringComparer.OrdinalIgnoreCase);
+
+        string? stillThere = null;
+
+        foreach (var (prefix, count) in histogram)
+        {
+            var display = $"{prefix} ({count})";
+            AvailablePrefixes.Add(display);
+            if (string.Equals(prefix, previous, StringComparison.OrdinalIgnoreCase)) stillThere = display;
+        }
+
+        // A prefix that belonged to the page we came from would otherwise silently filter
+        // this one down to nothing.
+        if (previous is not null && stillThere is null) _prefixFilter = null;
+
+        _selectedPrefixDisplay = stillThere ?? AllPrefixes;
+
+        OnPropertyChanged(nameof(PrefixFilter));
+        OnPropertyChanged(nameof(SelectedPrefixDisplay));
     }
 
     /// <summary>Turns the combo box's display string back into a prefix.</summary>
-    public void SetPrefixFromDisplay(string? display)
+    private void SetPrefixFromDisplay(string? display)
     {
         if (string.IsNullOrWhiteSpace(display) || display.StartsWith("All prefixes", StringComparison.Ordinal))
         {

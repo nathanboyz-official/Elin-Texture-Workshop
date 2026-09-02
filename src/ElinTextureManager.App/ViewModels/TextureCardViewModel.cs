@@ -40,6 +40,18 @@ public sealed class TextureCardViewModel : ObservableObject
     /// <summary>Portraits are replaced by file name rather than by sprite index.</summary>
     public bool IsPortrait => Entry.Kind == ReplacementKind.Portrait;
 
+    /// <summary>
+    /// True when this portrait has an "-overlay" layer folded into it. The overlay has no
+    /// tile of its own; it lives on this portrait's page.
+    /// </summary>
+    public bool HasOverlay => Entry.HasOverlay;
+
+    /// <summary>
+    /// The two right-hand badges share a slot, and knowing a texture is overridden matters
+    /// more than knowing it has an overlay, so the overlay badge yields.
+    /// </summary>
+    public bool ShowOverlayBadge => HasOverlay && !HasOverride;
+
     /// <summary>The alias when the user has named this texture, otherwise nothing.</summary>
     public string? DisplayName => string.IsNullOrWhiteSpace(Alias) ? null : Alias;
 
