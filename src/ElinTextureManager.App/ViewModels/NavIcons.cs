@@ -71,6 +71,10 @@ public static class NavIcons
         P("M3.4,2.6 L12.6,2.6 L12.6,13.4 L3.4,13.4 Z M5.8,5.6 L10.2,5.6 "
           + "M5.8,8 L10.2,8 M5.8,10.4 L8.6,10.4");
 
+    /// <summary>A list split in two: the halving this page does.</summary>
+    public static Geometry Bisect { get; } =
+        P("M2.6,4 L13.4,4 M2.6,7 L13.4,7 M2.6,12 L13.4,12 M8,9.2 L8,14.8 M5.6,9.6 L10.4,9.6");
+
     /// <summary>Stacked cards: one saved arrangement among several.</summary>
     public static Geometry Setups { get; } =
         P("M2.4,5.4 L8,2.8 L13.6,5.4 L8,8 Z M2.4,8.4 L8,11 L13.6,8.4 "
@@ -107,6 +111,7 @@ public static class NavIcons
         "Health" => Health,
         "Identify" => Identify,
         "Setups" => Setups,
+        "Bisect" => Bisect,
         "News" => News,
         "Settings" => Settings,
         _ => null,

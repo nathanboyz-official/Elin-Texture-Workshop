@@ -86,6 +86,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Health = new HealthViewModel(_app, OnDataChanged);
         Identify = new IdentifyViewModel(_app, OpenTextureDetail);
         Setups = new SetupsViewModel(_app, OnDataChanged);
+        Bisect = new BisectViewModel(_app, OnDataChanged);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(userRequested: true), () => !IsScanning);
         NavigateCommand = new RelayCommand(p => Navigate(p as string));
@@ -111,6 +112,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public IdentifyViewModel Identify { get; }
 
     public SetupsViewModel Setups { get; }
+
+    public BisectViewModel Bisect { get; }
 
     /// <summary>Every nav entry, in one list, for badges and selection.</summary>
     public ObservableCollection<NavItem> NavItems { get; } = new();
@@ -215,6 +218,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         await RefreshAsync(userRequested: false);
 
+        // Before anything else the user might do: if a mod search was interrupted, their
+        // load order is currently an arrangement they never chose.
+        var recovered = _app.Bisect.RecoverIfInterrupted();
+        if (recovered is not null)
+        {
+            ChangeNotice = recovered;
+            OnDataChanged();
+        }
+
         Navigate(_app.Settings.FirstRunCompleted ? _app.Settings.LastPage : "AllTextures");
 
         if (!_app.Settings.FirstRunCompleted)
@@ -265,6 +277,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         Add(ManagementNav, "Identify", "Identify",
             "Paste a screenshot and find which mod supplies what is in it.");
+        Add(ManagementNav, "Bisect", "Find the Culprit",
+            "Halve your mod list until the one that broke the game is left.");
         Add(ManagementNav, "Health", "Mod Health",
             "Broken calls, duplicate code and load-order rot - read from the mods themselves.");
 
@@ -341,6 +355,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 break;
             case "Identify":
                 CurrentPage = Identify;
+                break;
+            case "Bisect":
+                Bisect.Apply();
+                CurrentPage = Bisect;
                 break;
             case "Health":
                 CurrentPage = Health;

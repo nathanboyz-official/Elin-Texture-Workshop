@@ -172,6 +172,9 @@ public static class AppPaths
     public static string AliasFile => Path.Combine(Root, "aliases.json");
     public static string DatabaseFile => Path.Combine(Root, "cache.db");
     public static string NewsCacheFile => Path.Combine(Root, "news.json");
+
+    /// <summary>An in-progress bisect, so a crash mid-search can still be undone.</summary>
+    public static string BisectFile => Path.Combine(Root, "bisect.json");
     public static string LogDirectory => Path.Combine(Root, "Logs");
     public static string BackupDirectory => Path.Combine(Root, "Backups");
     public static string ThumbnailCache => Path.Combine(Root, "Thumbnails");

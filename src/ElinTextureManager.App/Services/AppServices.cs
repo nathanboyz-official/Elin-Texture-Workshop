@@ -31,7 +31,14 @@ public sealed class AppServices : IDisposable
     /// <summary>Colour index behind the reverse lookup. Built on demand, cached on disk.</summary>
     public SignatureIndex Signatures { get; }
 
-    public AppServices() => Signatures = new SignatureIndex(Cache);
+    /// <summary>Drives the halving search that finds which mod broke the game.</summary>
+    public BisectRunner Bisect { get; }
+
+    public AppServices()
+    {
+        Signatures = new SignatureIndex(Cache);
+        Bisect = new BisectRunner(this);
+    }
 
     public LoadOrderDocument LoadOrder { get; set; } = new();
     public Dictionary<string, TextureWinner> Winners { get; private set; } = new(StringComparer.OrdinalIgnoreCase);

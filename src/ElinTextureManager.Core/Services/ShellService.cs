@@ -92,6 +92,33 @@ public static class ShellService
     public static bool IsSteamClientInstalled() =>
         Detection.SteamLocator.FindSteamRoot() is not null;
 
+    /// <summary>Elin's Steam application id, used only to build a steam:// launch link.</summary>
+    public const string ElinAppId = "2135150";
+
+    /// <summary>
+    /// Starts the game through Steam.
+    ///
+    /// Through Steam rather than the executable directly: Workshop content is mounted by
+    /// the client, so a mod search that launched the exe on its own would be testing a
+    /// game with no Workshop mods in it at all.
+    /// </summary>
+    public static bool LaunchElin()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo($"steam://rungameid/{ElinAppId}")
+            {
+                UseShellExecute = true,
+            });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Could not start Elin through Steam", ex);
+            return false;
+        }
+    }
+
     /// <summary>Opens an https URL in the default browser. Anything else is refused.</summary>
     public static void OpenUrl(string? url)
     {
