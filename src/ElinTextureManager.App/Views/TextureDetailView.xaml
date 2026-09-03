@@ -14,12 +14,12 @@
             <Border x:Name="Card" Width="260" Margin="0,0,14,14" Padding="12"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="10">
+                    BorderThickness="1" CornerRadius="{StaticResource RadiusPanel}">
                 <StackPanel>
 
                     <!-- Preview -->
                     <Border Background="{StaticResource CheckerboardBrush}" Height="200"
-                            CornerRadius="6" ClipToBounds="True">
+                            CornerRadius="{StaticResource RadiusChip}" ClipToBounds="True">
                         <Image Source="{Binding Image}" Stretch="Uniform" StretchDirection="Both"
                                Margin="6"
                                RenderOptions.BitmapScalingMode="NearestNeighbor"
@@ -28,13 +28,13 @@
 
                     <!-- Status pills -->
                     <WrapPanel Margin="0,10,0,0">
-                        <Border Style="{StaticResource Pill}" Background="#1B3A5C" Margin="0,0,6,4"
+                        <Border Style="{StaticResource BadgeBlue}" Margin="0,0,6,4"
                                 Visibility="{Binding IsWinner, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="CURRENT WINNER" FontSize="9.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource AccentBrush}" />
                         </Border>
 
-                        <Border Style="{StaticResource Pill}" Background="#1D4436" Margin="0,0,6,4"
+                        <Border Style="{StaticResource BadgeGold}" Margin="0,0,6,4"
                                 Visibility="{Binding IsChosen, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="&#x2713; SELECTED" FontSize="9.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource SelectedBrush}" />
@@ -48,7 +48,7 @@
                                        Foreground="{StaticResource TextSecondaryBrush}" />
                         </Border>
 
-                        <Border Style="{StaticResource Pill}" Background="#3A2E1A" Margin="0,0,6,4"
+                        <Border Style="{StaticResource BadgeRust}" Margin="0,0,6,4"
                                 Visibility="{Binding IsVariant, Converter={StaticResource BoolToVis}}">
                             <TextBlock FontSize="9.5" Foreground="{StaticResource ConflictBrush}"
                                        Text="{Binding VariantName, StringFormat={}VARIANT: {0}}" />
@@ -63,7 +63,7 @@
                                        Foreground="{StaticResource TextSecondaryBrush}" />
                         </Border>
 
-                        <Border Style="{StaticResource Pill}" Background="#2A2438" Margin="0,0,6,4"
+                        <Border Style="{StaticResource BadgeNeutral}" Margin="0,0,6,4"
                                 Visibility="{Binding IsVanilla, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="BASE GAME" FontSize="9.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextSecondaryBrush}" />
@@ -127,7 +127,7 @@
                 <DataTrigger Binding="{Binding IsChosen}" Value="True">
                     <Setter TargetName="Card" Property="BorderBrush"
                             Value="{StaticResource SelectedBrush}" />
-                    <Setter TargetName="Card" Property="Background" Value="#12211C" />
+                    <Setter TargetName="Card" Property="Background" Value="{StaticResource GoldToneBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsWinner}" Value="True">
                     <Setter TargetName="Card" Property="BorderBrush"
@@ -190,7 +190,7 @@
 
                     <Border Grid.Column="0" Width="260" Height="260"
                             Background="{StaticResource CheckerboardBrush}"
-                            CornerRadius="8" ClipToBounds="True">
+                            CornerRadius="{StaticResource RadiusControl}" ClipToBounds="True">
                         <Image Source="{Binding WinnerVersion.Image}" Stretch="Uniform"
                                StretchDirection="Both" Margin="8"
                                RenderOptions.BitmapScalingMode="NearestNeighbor"
@@ -211,15 +211,15 @@
                         </StackPanel>
 
                         <!-- Honest about what cannot be determined locally -->
-                        <Border Margin="0,12,0,0" Padding="11,8" CornerRadius="6"
-                                Background="#3A2E1A"
+                        <Border Margin="0,12,0,0" Padding="11,8" CornerRadius="{StaticResource RadiusControl}"
+                                Background="{StaticResource RustToneBrush}"
                                 Visibility="{Binding IsUncertain,
                                             Converter={StaticResource BoolToVis}}">
                             <TextBlock Style="{StaticResource BodyText}" FontSize="12"
                                        Text="Not all sources for this texture appear in loadorder.txt, so which one Elin loads cannot be determined for certain. Selecting a version below removes the ambiguity." />
                         </Border>
 
-                        <Border Margin="0,12,0,0" Padding="11,8" CornerRadius="6"
+                        <Border Margin="0,12,0,0" Padding="11,8" CornerRadius="{StaticResource RadiusControl}"
                                 Background="{StaticResource SurfaceRaisedBrush}"
                                 Visibility="{Binding AllIdentical,
                                             Converter={StaticResource BoolToVis}}">
@@ -268,7 +268,7 @@
                             <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                 <TextBlock Text="A" Style="{StaticResource SectionHeader}" />
                                 <Border Background="{StaticResource CheckerboardBrush}" Height="300"
-                                        CornerRadius="6" ClipToBounds="True">
+                                        CornerRadius="{StaticResource RadiusChip}" ClipToBounds="True">
                                     <Image Source="{Binding CompareA.Image}" Stretch="Uniform"
                                            StretchDirection="Both" Margin="6"
                                            RenderOptions.BitmapScalingMode="NearestNeighbor" />
@@ -282,7 +282,7 @@
                             <StackPanel Grid.Column="1" Margin="8,0">
                                 <TextBlock Text="B" Style="{StaticResource SectionHeader}" />
                                 <Border Background="{StaticResource CheckerboardBrush}" Height="300"
-                                        CornerRadius="6" ClipToBounds="True">
+                                        CornerRadius="{StaticResource RadiusChip}" ClipToBounds="True">
                                     <Image Source="{Binding CompareB.Image}" Stretch="Uniform"
                                            StretchDirection="Both" Margin="6"
                                            RenderOptions.BitmapScalingMode="NearestNeighbor" />
@@ -296,7 +296,7 @@
                             <StackPanel Grid.Column="2" Margin="8,0,0,0">
                                 <TextBlock Text="A / B TOGGLE" Style="{StaticResource SectionHeader}" />
                                 <Border Background="{StaticResource CheckerboardBrush}" Height="300"
-                                        CornerRadius="6" ClipToBounds="True">
+                                        CornerRadius="{StaticResource RadiusChip}" ClipToBounds="True">
                                     <Image Source="{Binding AbCurrent.Image}" Stretch="Uniform"
                                            StretchDirection="Both" Margin="6"
                                            RenderOptions.BitmapScalingMode="NearestNeighbor" />

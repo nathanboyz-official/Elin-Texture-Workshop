@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
         xmlns:views="clr-namespace:ElinTextureManager.App.Views"
-        Title="Elin Texture Manager"
+        Title="Elin Texture Workshop"
         Height="900" Width="1440"
         MinHeight="620" MinWidth="1040"
         WindowStartupLocation="CenterScreen"
@@ -35,35 +35,62 @@
             <views:NewsView />
         </DataTemplate>
 
-        <!-- Sidebar entry -->
+        <!-- A heading over a group of nav entries. Engraved, not shouted. -->
+        <Style x:Key="NavSectionLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="Margin" Value="20,16,20,6" />
+        </Style>
+
+        <!-- Sidebar entry.
+             The current section is marked by a gold edge and brighter text rather
+             than a filled block: a solid rectangle in a list of eleven becomes the
+             loudest thing on screen, and it should not be. -->
         <Style x:Key="NavButton" TargetType="RadioButton">
             <Setter Property="GroupName" Value="Nav" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
             <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Margin" Value="8,1" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="ToolTip" Value="{Binding Tooltip}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Root" Background="Transparent" CornerRadius="7" Padding="12,9">
+                        <Border x:Name="Root" Background="Transparent" Padding="0,7">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="3" />
+                                    <ColumnDefinition Width="2" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <Border x:Name="Bar" Grid.Column="0" Width="3" CornerRadius="2"
-                                        Background="Transparent" Margin="-6,2,9,2" />
+                                <Border x:Name="Edge" Grid.Column="0" Width="2"
+                                        Background="Transparent" Margin="0,-1" />
 
-                                <TextBlock Grid.Column="1" Text="{Binding Label}"
-                                           VerticalAlignment="Center" />
+                                <Path x:Name="Icon" Grid.Column="2" Width="15" Height="15"
+                                      Data="{Binding Icon}" Stretch="Uniform"
+                                      Stroke="{StaticResource TextMutedBrush}"
+                                      StrokeThickness="1.15"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round" VerticalAlignment="Center" />
 
-                                <Border Grid.Column="2" Style="{StaticResource Pill}"
-                                        Background="{StaticResource SurfaceHoverBrush}"
-                                        Visibility="{Binding HasBadge, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="{Binding Badge}" FontSize="11"
+                                <TextBlock Grid.Column="3" Text="{Binding Label}"
+                                           VerticalAlignment="Center" Margin="10,0,0,0"
+                                           TextTrimming="CharacterEllipsis" />
+
+                                <Border Grid.Column="4" Style="{StaticResource Pill}"
+                                        Margin="6,0,18,0"
+                                        Background="{StaticResource SurfaceRaisedBrush}"
+                                        Visibility="{Binding HasBadge,
+                                                    Converter={StaticResource BoolToVis}}">
+                                    <TextBlock x:Name="BadgeText" Text="{Binding Badge}"
+                                               FontFamily="{StaticResource MonoFont}" FontSize="10"
                                                Foreground="{StaticResource TextSecondaryBrush}" />
                                 </Border>
                             </Grid>
@@ -73,20 +100,40 @@
                                 <Setter TargetName="Root" Property="Background"
                                         Value="{StaticResource SurfaceBrush}" />
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                <Setter TargetName="Icon" Property="Stroke"
+                                        Value="{StaticResource TextSecondaryBrush}" />
                             </Trigger>
                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                 <Setter TargetName="Root" Property="Background"
                                         Value="{StaticResource SurfaceRaisedBrush}" />
-                                <Setter TargetName="Bar" Property="Background"
-                                        Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Edge" Property="Background"
+                                        Value="{StaticResource GoldBrush}" />
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="Icon" Property="Stroke"
+                                        Value="{StaticResource GoldBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Key}" Value="Conflicts">
+                                <Setter TargetName="BadgeText" Property="Foreground"
+                                        Value="{StaticResource RustBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Key}" Value="Overrides">
+                                <Setter TargetName="BadgeText" Property="Foreground"
+                                        Value="{StaticResource GoldBrush}" />
                             </DataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- One template for all three groups, so they cannot drift apart. -->
+        <DataTemplate x:Key="NavEntry">
+            <RadioButton Style="{StaticResource NavButton}"
+                         IsChecked="{Binding IsSelected, Mode=OneWay}"
+                         Command="{Binding DataContext.NavigateCommand,
+                                   RelativeSource={RelativeSource AncestorType=Window}}"
+                         CommandParameter="{Binding Key}" />
+        </DataTemplate>
     </Window.Resources>
 
     <Window.InputBindings>
@@ -97,7 +144,7 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="228" />
+            <ColumnDefinition Width="230" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
@@ -109,40 +156,57 @@
         <Border Grid.Row="0" Grid.Column="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
             <DockPanel>
-                <StackPanel DockPanel.Dock="Top" Margin="20,22,20,18">
-                    <TextBlock Text="ELIN" FontSize="19" FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}" />
-                    <TextBlock Text="TEXTURE MANAGER" FontSize="10.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource AccentBrush}" Margin="0,1,0,0" />
+
+                <!-- Wordmark. Serif for ELIN, letterspaced sans beneath: enough to
+                     give the application a name without eating the workspace. -->
+                <StackPanel DockPanel.Dock="Top" Margin="20,20,20,14">
+                    <TextBlock Text="ELIN" FontFamily="{StaticResource DisplayFont}"
+                               FontSize="23" Foreground="{StaticResource TextPrimaryBrush}"
+                               TextOptions.TextFormattingMode="Ideal" />
+                    <TextBlock Text="TEXTURE WORKSHOP" FontSize="9" FontWeight="SemiBold"
+                               Margin="1,2,0,0"
+                               Foreground="{StaticResource GoldDimBrush}" />
                 </StackPanel>
 
-                <!-- Override count, the headline number of the whole app -->
-                <Border DockPanel.Dock="Bottom" Margin="16,10,16,16" Padding="12,10"
-                        Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="8">
+                <Border DockPanel.Dock="Top" Style="{StaticResource Divider}" Margin="20,0,20,0" />
+
+                <!-- Your overrides: the number the whole application exists to move. -->
+                <Border DockPanel.Dock="Bottom" Margin="16,12,16,16" Padding="12,10"
+                        Background="{StaticResource SurfaceRaisedBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="{StaticResource RadiusPanel}"
+                        ToolTip="Images where you picked which mod wins.">
                     <StackPanel>
-                        <TextBlock Text="YOUR OVERRIDES" FontSize="9.5" FontWeight="SemiBold"
+                        <TextBlock Text="YOUR OVERRIDES" FontSize="9" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextMutedBrush}" />
-                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock Text="{Binding OverrideCount}" FontSize="21" FontWeight="Bold"
-                                       Foreground="{StaticResource SelectedBrush}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <TextBlock Text="{Binding OverrideCount}"
+                                       FontFamily="{StaticResource DisplayFont}"
+                                       FontSize="22"
+                                       TextOptions.TextFormattingMode="Ideal"
+                                       Foreground="{StaticResource GoldBrush}" />
                             <TextBlock Text="textures" FontSize="11" VerticalAlignment="Bottom"
-                                       Margin="6,0,0,4"
-                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                       Margin="7,0,0,4"
+                                       Foreground="{StaticResource TextMutedBrush}" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
-                <ItemsControl ItemsSource="{Binding NavItems}" Margin="0,0,0,8">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <RadioButton Style="{StaticResource NavButton}"
-                                         IsChecked="{Binding IsSelected, Mode=OneWay}"
-                                         Command="{Binding DataContext.NavigateCommand,
-                                                   RelativeSource={RelativeSource AncestorType=Window}}"
-                                         CommandParameter="{Binding Key}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="LIBRARY" Style="{StaticResource NavSectionLabel}" />
+                        <ItemsControl ItemsSource="{Binding LibraryNav}"
+                                      ItemTemplate="{StaticResource NavEntry}" />
+
+                        <TextBlock Text="MANAGEMENT" Style="{StaticResource NavSectionLabel}" />
+                        <ItemsControl ItemsSource="{Binding ManagementNav}"
+                                      ItemTemplate="{StaticResource NavEntry}" />
+
+                        <TextBlock Text="SYSTEM" Style="{StaticResource NavSectionLabel}" />
+                        <ItemsControl ItemsSource="{Binding SystemNav}"
+                                      ItemTemplate="{StaticResource NavEntry}" />
+                    </StackPanel>
+                </ScrollViewer>
             </DockPanel>
         </Border>
 
@@ -154,10 +218,10 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- Header -->
+            <!-- Toolbar. Search sits inside it rather than floating on it. -->
             <Border Grid.Row="0" Background="{StaticResource BackgroundBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
-                    Padding="24,14">
+                    Padding="24,12">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -165,16 +229,28 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <Button Grid.Column="0" Content="&#x2190;  Back" Style="{StaticResource SubtleButton}"
-                            Command="{Binding BackCommand}" Margin="0,0,14,0"
+                    <Button Grid.Column="0" Content="Back" Style="{StaticResource SubtleButton}"
+                            Command="{Binding BackCommand}" Margin="0,0,12,0"
+                            ToolTip="Return to the previous screen   (Esc)"
                             Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}" />
 
-                    <Grid Grid.Column="1" MaxWidth="480" HorizontalAlignment="Left">
-                        <TextBox x:Name="SearchBox"
-                                 Text="{Binding Browser.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}" />
-                        <TextBlock Text="Search textures, mods or Workshop IDs   (Ctrl+F)"
-                                   IsHitTestVisible="False" Margin="10,0,0,0"
+                    <Grid Grid.Column="1" MaxWidth="440" HorizontalAlignment="Left">
+                        <TextBox x:Name="SearchBox" Padding="30,6,64,6"
+                                 Text="{Binding Browser.SearchText,
+                                        UpdateSourceTrigger=PropertyChanged, Delay=150}" />
+
+                        <!-- Search mark, drawn so no icon font is required. -->
+                        <Path Width="12" Height="12" HorizontalAlignment="Left" Margin="10,0,0,0"
+                              VerticalAlignment="Center" IsHitTestVisible="False"
+                              Stretch="Uniform"
+                              Data="M6.2,1.4 A4.8,4.8 0 1,1 6.19,1.4 Z M9.8,9.8 L14,14"
+                              Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.3"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+
+                        <TextBlock Text="Search textures, mods or Workshop IDs"
+                                   IsHitTestVisible="False" Margin="30,0,62,0"
                                    VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="12.5">
                             <TextBlock.Style>
@@ -188,36 +264,67 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+
+                        <!-- The shortcut stays on screen: this is a keyboard tool. -->
+                        <Border HorizontalAlignment="Right" Margin="0,0,7,0"
+                                VerticalAlignment="Center" IsHitTestVisible="False"
+                                Style="{StaticResource BadgeNeutral}">
+                            <TextBlock Text="Ctrl+F" FontFamily="{StaticResource MonoFont}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" />
+                        </Border>
                     </Grid>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <TextBlock Text="Elin is running" VerticalAlignment="Center" FontSize="12"
-                                   Margin="0,0,14,0" Foreground="{StaticResource ConflictBrush}"
-                                   Visibility="{Binding ElinRunning, Converter={StaticResource BoolToVis}}" />
-                        <Button Content="Refresh Mods   (F5)" Style="{StaticResource PrimaryButton}"
-                                Command="{Binding RefreshCommand}" />
+                        <Border Style="{StaticResource BadgeRust}" Margin="0,0,12,0"
+                                Padding="8,4"
+                                ToolTip="Elin is open. Texture changes are picked up when it next starts."
+                                Visibility="{Binding ElinRunning,
+                                            Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="ELIN IS RUNNING" Style="{StaticResource BadgeText}"
+                                       Foreground="{StaticResource RustBrush}" />
+                        </Border>
+
+                        <Button Style="{StaticResource PrimaryButton}" Padding="12,6"
+                                Command="{Binding RefreshCommand}"
+                                ToolTip="Rescan your Workshop folder for new and changed mods">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Width="12" Height="12" Stretch="Uniform"
+                                      VerticalAlignment="Center" Margin="0,0,8,0"
+                                      Data="M13.4,7.2 A5.6,5.6 0 1,1 11.6,3.2 M11.9,0.6 L12.1,3.6 L9.1,3.9"
+                                      Stroke="{StaticResource BlueBrush}" StrokeThickness="1.4"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                <TextBlock Text="REFRESH MODS" FontSize="11" FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="F5" FontFamily="{StaticResource MonoFont}"
+                                           FontSize="10" Margin="10,0,0,0" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextMutedBrush}" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>
 
             <!-- Notices -->
             <StackPanel Grid.Row="1">
-                <Border Background="#1F2B3A" BorderBrush="{StaticResource AccentDarkBrush}"
-                        BorderThickness="0,0,0,1" Padding="24,10"
+                <Border Background="{StaticResource BlueToneBrush}"
+                        BorderBrush="{StaticResource BlueDimBrush}"
+                        BorderThickness="0,0,0,1" Padding="24,9"
                         Visibility="{Binding HasChangeNotice, Converter={StaticResource BoolToVis}}">
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="Dismiss"
                                 Style="{StaticResource SubtleButton}"
                                 Command="{Binding DismissNoticeCommand}" />
                         <TextBlock Text="{Binding ChangeNotice}" VerticalAlignment="Center"
-                                   Foreground="{StaticResource TextPrimaryBrush}" FontSize="12.5" />
+                                   Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" />
                     </DockPanel>
                 </Border>
 
-                <Border Background="#3A2E1A" BorderBrush="{StaticResource ConflictBrush}"
-                        BorderThickness="0,0,0,1" Padding="24,10"
+                <Border Background="{StaticResource RustToneBrush}"
+                        BorderBrush="{StaticResource RustDimBrush}"
+                        BorderThickness="0,0,0,1" Padding="24,9"
                         Visibility="{Binding RestartNeeded, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Foreground="{StaticResource TextPrimaryBrush}" FontSize="12.5"
+                    <TextBlock Foreground="{StaticResource TextPrimaryBrush}" FontSize="12"
                                Text="Changes saved. Restart Elin to apply your texture changes." />
                 </Border>
 
@@ -229,11 +336,14 @@
             <ContentControl Grid.Row="2" Content="{Binding CurrentPage}" />
         </Grid>
 
-        <!-- ==================== STATUS BAR ==================== -->
+        <!-- ==================== STATUS BAR ====================
+             Kept dense and monospaced. Every number here is something a modder
+             actually wants at a glance; the accents mark only the two that ask
+             for a decision. -->
         <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
-                Padding="18,7">
+                Padding="18,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -242,39 +352,58 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock Style="{StaticResource MonoText}" Margin="0,0,16,0">
-                        <Run Text="{Binding ModCount, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource MonoText}"
+                               ToolTip="Mods that supply at least one image, out of every mod detected">
+                        <Run Text="{Binding ModCount, Mode=OneWay}"
+                             Foreground="{StaticResource TextSecondaryBrush}" />
                         <Run Text="texture mods" />
-                        <Run Text="/" />
+                        <Run Text="/" Foreground="{StaticResource TextMutedBrush}" />
                         <Run Text="{Binding TotalModCount, Mode=OneWay}" />
                         <Run Text="total" />
                     </TextBlock>
-                    <TextBlock Style="{StaticResource MonoText}" Margin="0,0,16,0">
-                        <Run Text="{Binding TextureCount, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" />
+
+                    <TextBlock Text="&#x2022;" Style="{StaticResource MonoText}" Margin="12,0" />
+
+                    <TextBlock Style="{StaticResource MonoText}"
+                               ToolTip="Image files found, and the distinct IDs they replace">
+                        <Run Text="{Binding TextureCount, Mode=OneWay}"
+                             Foreground="{StaticResource TextSecondaryBrush}" />
                         <Run Text="textures" />
-                        <Run Text="/" />
+                        <Run Text="/" Foreground="{StaticResource TextMutedBrush}" />
                         <Run Text="{Binding UniqueCount, Mode=OneWay}" />
                         <Run Text="IDs" />
                     </TextBlock>
-                    <TextBlock Style="{StaticResource MonoText}" Margin="0,0,16,0">
-                        <Run Text="{Binding ConflictCount, Mode=OneWay}" Foreground="{StaticResource ConflictBrush}" />
+
+                    <TextBlock Text="&#x2022;" Style="{StaticResource MonoText}" Margin="12,0" />
+
+                    <TextBlock Style="{StaticResource MonoText}"
+                               ToolTip="Images supplied by more than one enabled mod">
+                        <Run Text="{Binding ConflictCount, Mode=OneWay}"
+                             Foreground="{StaticResource RustBrush}" />
                         <Run Text="conflicts" />
                     </TextBlock>
-                    <TextBlock Style="{StaticResource MonoText}">
-                        <Run Text="{Binding OverrideCount, Mode=OneWay}" Foreground="{StaticResource SelectedBrush}" />
+
+                    <TextBlock Text="&#x2022;" Style="{StaticResource MonoText}" Margin="12,0" />
+
+                    <TextBlock Style="{StaticResource MonoText}"
+                               ToolTip="Images where you chose which mod wins">
+                        <Run Text="{Binding OverrideCount, Mode=OneWay}"
+                             Foreground="{StaticResource GoldBrush}" />
                         <Run Text="overrides" />
                     </TextBlock>
                 </StackPanel>
 
                 <TextBlock Grid.Column="1" Style="{StaticResource MonoText}"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"
                            Text="{Binding ActivityText}"
                            Visibility="{Binding ActivityText, Converter={StaticResource NotNullToVis}}" />
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <TextBlock Text="{Binding StatusText}" Style="{StaticResource MonoText}"
                                VerticalAlignment="Center" Margin="0,0,12,0" />
-                    <Button Content="Log" Style="{StaticResource SubtleButton}" Padding="8,2"
+                    <Button Content="Log" Style="{StaticResource SubtleButton}" Padding="9,3"
+                            ToolTip="Open the folder holding the application log"
                             Command="{Binding OpenLogCommand}" />
                 </StackPanel>
             </Grid>

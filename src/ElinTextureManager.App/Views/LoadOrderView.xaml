@@ -7,7 +7,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LoadOrderViewModel}">
 
-    <Grid Margin="24,18,24,0">
+    <Grid Margin="{StaticResource PagePadding}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -117,7 +117,7 @@
                                 <ControlTemplate TargetType="ListBoxItem">
                                     <Border x:Name="Row" Background="{StaticResource SurfaceBrush}"
                                             BorderBrush="{StaticResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="8" Padding="10,8">
+                                            BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Padding="10,8">
                                         <ContentPresenter />
                                     </Border>
                                     <ControlTemplate.Triggers>
@@ -162,7 +162,7 @@
                                                TextTrimming="CharacterEllipsis"
                                                Foreground="{StaticResource TextPrimaryBrush}" />
                                     <Border Style="{StaticResource Pill}" Margin="10,0,0,0"
-                                            Background="#4A2427"
+                                            Background="{StaticResource DangerToneBrush}"
                                             Visibility="{Binding IsMissing,
                                                         Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="NOT INSTALLED" FontSize="9.5"
@@ -183,7 +183,7 @@
                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                Text="{Binding TextureCount, StringFormat={}{0} tex}" />
                                 </Border>
-                                <Border Style="{StaticResource Pill}" Background="#4A3416"
+                                <Border Style="{StaticResource Pill}" Background="{StaticResource RustToneBrush}"
                                         Visibility="{Binding ConflictCount,
                                                     Converter={StaticResource CountToVis}}">
                                     <TextBlock FontSize="10.5"
@@ -211,7 +211,7 @@
 
         <!-- Status -->
         <Border Grid.Row="3" VerticalAlignment="Bottom" Margin="0,0,0,10" Padding="12,8"
-                CornerRadius="8" Background="{StaticResource SurfaceRaisedBrush}"
+                CornerRadius="{StaticResource RadiusControl}" Background="{StaticResource SurfaceRaisedBrush}"
                 Visibility="{Binding StatusMessage, Converter={StaticResource NotNullToVis}}">
             <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyText}" />
         </Border>

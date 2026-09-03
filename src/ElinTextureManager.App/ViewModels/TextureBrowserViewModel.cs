@@ -55,7 +55,7 @@ public sealed class TextureBrowserViewModel : ObservableObject
     public ObservableCollection<string> AvailablePrefixes { get; } = new();
 
     /// <summary>The "no filter" row, kept in one place so the view and the list agree.</summary>
-    public const string AllPrefixes = "All prefixes";
+    public const string AllPrefixes = "All groups";
 
     private string _selectedPrefixDisplay = AllPrefixes;
 
@@ -123,15 +123,66 @@ public sealed class TextureBrowserViewModel : ObservableObject
 
     public bool IsEmpty => Items.Count == 0;
 
+    /// <summary>Headline of the empty state. Says which kind of empty this is.</summary>
+    public string EmptyTitle => _app.Scan.UniqueTextureCount == 0
+        ? "Nothing scanned yet"
+        : _scope == TextureScope.ConflictsOnly ? "No conflicts"
+        : _scope == TextureScope.SelectedOnly ? "No overrides yet"
+        : "Nothing matches";
+
     public string EmptyMessage => _app.Scan.UniqueTextureCount == 0
-        ? "No replacement textures found yet. Use Refresh to scan your Workshop folder."
-        : "No textures match the current filters.";
+        ? "No replacement images have been found. Use Refresh Mods to scan your Workshop folder."
+        : _scope == TextureScope.ConflictsOnly
+            ? "Every image in this view comes from exactly one mod, so there is nothing to decide between."
+            : _scope == TextureScope.SelectedOnly
+                ? "You have not chosen a winner for any image in this view. Open one and press Use This Texture."
+                : "No images match the current search and filters. Try Clear filters.";
 
     public int ThumbnailSize => (int)_app.Settings.ThumbnailSize;
 
-    public double CardWidth => ThumbnailSize + 24;
+    public double CardWidth => ThumbnailSize + 18;
 
-    public double CardHeight => ThumbnailSize + 96;
+    public double CardHeight => ThumbnailSize + 92;
+
+    // ---- grid density ----
+
+    /// <summary>
+    /// How many images fit on screen at once, which for a library of thousands is the
+    /// difference between browsing and hunting. The setting already existed under
+    /// Settings; it belongs on the toolbar, next to the grid it governs.
+    /// </summary>
+    public bool GridSmall
+    {
+        get => _app.Settings.ThumbnailSize == Core.Storage.ThumbnailSize.Small;
+        set { if (value) SetGridSize(Core.Storage.ThumbnailSize.Small); }
+    }
+
+    public bool GridMedium
+    {
+        get => _app.Settings.ThumbnailSize == Core.Storage.ThumbnailSize.Medium;
+        set { if (value) SetGridSize(Core.Storage.ThumbnailSize.Medium); }
+    }
+
+    public bool GridLarge
+    {
+        get => _app.Settings.ThumbnailSize == Core.Storage.ThumbnailSize.Large;
+        set { if (value) SetGridSize(Core.Storage.ThumbnailSize.Large); }
+    }
+
+    private void SetGridSize(Core.Storage.ThumbnailSize size)
+    {
+        if (_app.Settings.ThumbnailSize == size) return;
+
+        _app.Settings.ThumbnailSize = size;
+        _app.SaveSettings();
+
+        OnPropertyChanged(nameof(GridSmall));
+        OnPropertyChanged(nameof(GridMedium));
+        OnPropertyChanged(nameof(GridLarge));
+
+        // Card size feeds the decode width, so the tiles have to be rebuilt.
+        Apply();
+    }
 
     /// <summary>
     /// Where the grid was scrolled to. Held here rather than in the view, because the
@@ -179,6 +230,7 @@ public sealed class TextureBrowserViewModel : ObservableObject
         OnPropertyChanged(nameof(ResultCount));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(EmptyMessage));
+        OnPropertyChanged(nameof(EmptyTitle));
         OnPropertyChanged(nameof(ThumbnailSize));
         OnPropertyChanged(nameof(CardWidth));
         OnPropertyChanged(nameof(CardHeight));
@@ -220,7 +272,7 @@ public sealed class TextureBrowserViewModel : ObservableObject
         var previous = _prefixFilter;
 
         AvailablePrefixes.Clear();
-        AvailablePrefixes.Add("All prefixes");
+        AvailablePrefixes.Add(AllPrefixes);
 
         var histogram = Scoped()
             .GroupBy(e => e.Prefix, StringComparer.OrdinalIgnoreCase)
@@ -250,7 +302,7 @@ public sealed class TextureBrowserViewModel : ObservableObject
     /// <summary>Turns the combo box's display string back into a prefix.</summary>
     private void SetPrefixFromDisplay(string? display)
     {
-        if (string.IsNullOrWhiteSpace(display) || display.StartsWith("All prefixes", StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(display) || display.StartsWith(AllPrefixes, StringComparison.Ordinal))
         {
             PrefixFilter = null;
             return;

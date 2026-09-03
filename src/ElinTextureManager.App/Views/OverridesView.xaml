@@ -7,7 +7,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:OverridesViewModel}">
 
-    <Grid Margin="24,18,24,0">
+    <Grid Margin="{StaticResource PagePadding}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -31,8 +31,12 @@
                         Command="{Binding ExportCommand}" />
                 <Button Content="Export as Mod" Margin="6,0,0,0" Style="{StaticResource SubtleButton}"
                         Command="{Binding ExportAsModCommand}" />
+                <!-- Destructive, so it is marked in red text - but not given the
+                     loudest surface on the page. The confirmation dialog is the
+                     real guard; visual shouting is not. -->
                 <Button Content="Clear All Overrides" Margin="6,0,0,0"
-                        Style="{StaticResource DangerButton}"
+                        Style="{StaticResource SubtleButton}"
+                        Foreground="{StaticResource DangerBrush}"
                         Command="{Binding ClearAllCommand}" />
             </StackPanel>
         </Grid>
@@ -45,7 +49,7 @@
                 <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyText}" />
             </Border>
 
-            <Border Padding="12,9" Margin="0,0,0,12" CornerRadius="8" Background="#3A2E1A"
+            <Border Padding="12,9" Margin="0,0,0,12" CornerRadius="{StaticResource RadiusControl}" Background="{StaticResource RustToneBrush}"
                     Visibility="{Binding HasAttention, Converter={StaticResource BoolToVis}}">
                 <TextBlock Style="{StaticResource BodyText}"
                            Foreground="{StaticResource TextPrimaryBrush}">
@@ -61,8 +65,8 @@
                 <ItemsControl ItemsSource="{Binding Items}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border x:Name="Row" Style="{StaticResource Card}" Padding="12"
-                                    Margin="0,0,0,10">
+                            <Border x:Name="Row" Style="{StaticResource Card}" Padding="10"
+                                    Margin="0,0,0,6">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -71,9 +75,9 @@
                                     </Grid.ColumnDefinitions>
 
                                     <!-- Preview -->
-                                    <Border Grid.Column="0" Width="84" Height="84"
+                                    <Border Grid.Column="0" Width="64" Height="64"
                                             Background="{StaticResource CheckerboardBrush}"
-                                            CornerRadius="6" ClipToBounds="True">
+                                            CornerRadius="{StaticResource RadiusControl}" ClipToBounds="True">
                                         <Image Source="{Binding Thumbnail}" Stretch="Uniform"
                                                StretchDirection="Both" Margin="4"
                                                RenderOptions.BitmapScalingMode="NearestNeighbor" />

@@ -18,16 +18,26 @@ public sealed class NavItem : ObservableObject
     private string? _badge;
     private bool _isSelected;
 
-    public NavItem(string key, string label, string glyph)
+    public NavItem(string key, string label, string? tooltip = null)
     {
         Key = key;
         Label = label;
-        Glyph = glyph;
+        Tooltip = tooltip;
+        Icon = NavIcons.ForKey(key);
     }
 
     public string Key { get; }
     public string Label { get; }
-    public string Glyph { get; }
+
+    /// <summary>Line-art icon, drawn rather than taken from a font. See NavIcons.</summary>
+    public System.Windows.Media.Geometry? Icon { get; }
+
+    /// <summary>
+    /// What this section is for, in one sentence. Several of these names only make
+    /// sense once you already know the application, which is exactly when a tooltip
+    /// is no longer any use - so they are written for a first-time reader.
+    /// </summary>
+    public string? Tooltip { get; }
 
     public string? Badge
     {
@@ -93,7 +103,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public SettingsViewModel Settings { get; }
     public NewsViewModel News { get; }
 
+    /// <summary>Every nav entry, in one list, for badges and selection.</summary>
     public ObservableCollection<NavItem> NavItems { get; } = new();
+
+    /// <summary>
+    /// The same entries split into the three groups the sidebar draws under headings.
+    /// Eleven flat items read as an undifferentiated list; three labelled groups of
+    /// three or four read as a table of contents.
+    /// </summary>
+    public ObservableCollection<NavItem> LibraryNav { get; } = new();
+    public ObservableCollection<NavItem> ManagementNav { get; } = new();
+    public ObservableCollection<NavItem> SystemNav { get; } = new();
 
     public event Action? SearchFocusRequested;
 
@@ -198,20 +218,48 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         StartGameDetection();
     }
 
+    /// <summary>
+    /// Builds the sidebar. Browsing is one thing, deciding what the game loads is
+    /// another, and the application's own settings are a third - so they are three
+    /// labelled groups rather than one list of eleven.
+    /// </summary>
     private void BuildNav()
     {
         NavItems.Clear();
-        NavItems.Add(new NavItem("AllTextures", "All Textures", ""));
-        NavItems.Add(new NavItem("Characters", "Characters", ""));
-        NavItems.Add(new NavItem("Items", "Items", ""));
-        NavItems.Add(new NavItem("Portraits", "Portraits", ""));
-        NavItems.Add(new NavItem("Objects", "Objects", ""));
-        NavItems.Add(new NavItem("Conflicts", "Conflicts", ""));
-        NavItems.Add(new NavItem("Overrides", "Selected Overrides", ""));
-        NavItems.Add(new NavItem("Mods", "Mods", ""));
-        NavItems.Add(new NavItem("LoadOrder", "Load Order", ""));
-        NavItems.Add(new NavItem("News", "Game News", ""));
-        NavItems.Add(new NavItem("Settings", "Settings", ""));
+        LibraryNav.Clear();
+        ManagementNav.Clear();
+        SystemNav.Clear();
+
+        Add(LibraryNav, "AllTextures", "All Textures",
+            "Every replacement image found in your installed mods.");
+        Add(LibraryNav, "Characters", "Characters",
+            "Sprites for NPCs, monsters and the player.");
+        Add(LibraryNav, "Items", "Items", "Item sprites.");
+        Add(LibraryNav, "Portraits", "Portraits",
+            "Character portraits, grouped by what their file names encode.");
+        Add(LibraryNav, "Objects", "Objects", "Furniture, walls and placed objects.");
+
+        Add(ManagementNav, "Conflicts", "Conflicts",
+            "Images supplied by more than one enabled mod. These are the ones you have "
+            + "to make a decision about.");
+        Add(ManagementNav, "Overrides", "Selected Overrides",
+            "Images where you picked which mod wins. Your choices are copied into a "
+            + "package of their own, so no Workshop folder is ever modified.");
+        Add(ManagementNav, "Mods", "Mods",
+            "Every detected mod, grouped by its Workshop tags. Turn a whole mod off here.");
+        Add(ManagementNav, "LoadOrder", "Load Order",
+            "The order Elin loads mods in, which decides who wins when you have not "
+            + "chosen for yourself.");
+
+        Add(SystemNav, "News", "Game News", "Elin's own Steam announcements.");
+        Add(SystemNav, "Settings", "Settings", "Paths, scanning and appearance.");
+    }
+
+    private void Add(ObservableCollection<NavItem> group, string key, string label, string tooltip)
+    {
+        var item = new NavItem(key, label, tooltip);
+        group.Add(item);
+        NavItems.Add(item);
     }
 
     public void Navigate(string? key)
@@ -226,23 +274,30 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         switch (key)
         {
             case "AllTextures":
-                ShowBrowser("All Textures", null, TextureScope.All);
+                ShowBrowser("Texture Archive", null, TextureScope.All,
+                    $"{UniqueCount:N0} images from {ModCount:N0} texture mods");
                 break;
             case "Characters":
-                ShowBrowser("Characters", TextureCategory.Characters, TextureScope.All);
+                ShowBrowser("Characters", TextureCategory.Characters, TextureScope.All,
+                    "Sprites for NPCs, monsters and the player.");
                 break;
             case "Items":
-                ShowBrowser("Items", TextureCategory.Items, TextureScope.All);
+                ShowBrowser("Items", TextureCategory.Items, TextureScope.All,
+                    "Item sprites.");
                 break;
             case "Portraits":
-                ShowBrowser("Portraits", TextureCategory.Portraits, TextureScope.All);
+                ShowBrowser("Portraits", TextureCategory.Portraits, TextureScope.All,
+                    "Grouped by what the file names encode. Overlay layers are shown "
+                    + "inside the portrait they belong to.");
                 break;
             case "Objects":
-                ShowBrowser("Objects", TextureCategory.Objects, TextureScope.All);
+                ShowBrowser("Objects", TextureCategory.Objects, TextureScope.All,
+                    "Furniture, walls and placed objects.");
                 break;
             case "Conflicts":
                 ShowBrowser("Conflicts", null, TextureScope.ConflictsOnly,
-                    "Textures supplied by more than one enabled mod. Click one to compare versions.");
+                    "Images supplied by more than one enabled mod. These are the ones "
+                    + "that need a decision.");
                 break;
             case "Overrides":
                 Overrides.Apply();
