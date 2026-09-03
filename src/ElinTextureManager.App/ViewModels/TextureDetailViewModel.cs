@@ -290,11 +290,15 @@ public sealed class TextureDetailViewModel : ObservableObject
                                    && f.SourceType != TextureSourceType.Vanilla
                                    && string.Equals(f.Hash, originalHash, StringComparison.OrdinalIgnoreCase));
 
-        Versions = Entry.Versions.Select(Build).ToList();
+        Versions = ChoosableVersions().Select(Build).ToList();
         Variants = Entry.Variants.Select(Build).ToList();
         Original = Entry.Vanilla is null ? null : Build(Entry.Vanilla);
         OverlayVersions = BuildOverlayVersions();
-        WinnerVersion = Versions.FirstOrDefault(v => v.IsWinner);
+        // What the game loads is often our own override copy, which is deliberately not
+        // in the choosable list - but it is exactly what this panel has to show, so it
+        // is built directly from the resolved winner when the list does not hold it.
+        WinnerVersion = Versions.FirstOrDefault(v => v.IsWinner)
+                        ?? (Winner.File is not null ? Build(Winner.File) : null);
 
         OnPropertyChanged(nameof(Versions));
         OnPropertyChanged(nameof(Variants));
@@ -402,6 +406,21 @@ public sealed class TextureDetailViewModel : ObservableObject
     }
 
     /// <summary>
+    /// What the user can actually pick between.
+    ///
+    /// The copy in our own override package is left out: it is a duplicate of whichever
+    /// mod was chosen, and offering "use this texture" on it does nothing. The choice is
+    /// already shown - the card it was copied from is marked SELECTED, and the panel
+    /// above names it. The one exception is a copy whose source mod has been
+    /// unsubscribed, where hiding it would leave nothing on the page at all.
+    /// </summary>
+    private IEnumerable<TextureFile> ChoosableVersions()
+    {
+        var fromMods = Entry.ModVersions.ToList();
+        return fromMods.Count > 0 ? fromMods : Entry.Versions;
+    }
+
+    /// <summary>
     /// The overlay's versions, built with their own winner and override state so that
     /// selecting one behaves exactly as it would on a page of its own.
     /// </summary>
@@ -414,7 +433,7 @@ public sealed class TextureDetailViewModel : ObservableObject
         var chosen = _app.Selections.Get(overlay.TextureId);
         var originalHash = overlay.Vanilla?.Hash;
 
-        var files = overlay.Versions.AsEnumerable();
+        var files = overlay.ModVersions.Any() ? overlay.ModVersions : overlay.Versions;
         if (overlay.Vanilla is not null) files = files.Append(overlay.Vanilla);
 
         return files.Select(f => new TextureVersionViewModel(

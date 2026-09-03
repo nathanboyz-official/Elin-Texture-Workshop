@@ -72,19 +72,35 @@ public sealed class TextureEntry
     /// <summary>Optional user-assigned or game-derived display name (e.g. "Gaki").</summary>
     public string? DisplayName { get; set; }
 
-    public int SourceCount => Versions.Count;
+    /// <summary>
+    /// The versions supplied by actual mods, which is the only thing a conflict can be
+    /// between. Two other kinds of file live in <see cref="Versions"/> and neither is a
+    /// competing mod:
+    ///
+    ///   * the base game's own file - it is what a mod replaces, not a rival to it;
+    ///   * the copy this application writes into its own override package when you
+    ///     choose a winner - counting that would mean resolving a conflict left it
+    ///     still reported as one.
+    ///
+    /// Both stay in <see cref="Versions"/> because the winner resolver has to see them
+    /// to work out what the game actually loads. They just do not count as sources.
+    /// </summary>
+    public IEnumerable<TextureFile> ModVersions => Versions.Where(v =>
+        v.SourceType is not (TextureSourceType.Override or TextureSourceType.Vanilla));
+
+    public int SourceCount => ModVersions.Count();
 
     /// <summary>Distinct file hashes - two mods shipping the same PNG count once.</summary>
-    public int UniqueImageCount => Versions
+    public int UniqueImageCount => ModVersions
         .Select(v => v.Hash ?? v.FullPath)
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .Count();
 
-    /// <summary>A conflict is more than one mod supplying this texture ID.</summary>
-    public bool HasConflict => Versions.Count > 1;
+    /// <summary>A conflict is more than one MOD supplying this texture ID.</summary>
+    public bool HasConflict => SourceCount > 1;
 
     /// <summary>True when every version is byte-identical - a conflict with no visual difference.</summary>
-    public bool AllIdentical => Versions.Count > 1 && UniqueImageCount == 1;
+    public bool AllIdentical => SourceCount > 1 && UniqueImageCount == 1;
 
     public string VersionSummary => UniqueImageCount == SourceCount
         ? $"{SourceCount} source{(SourceCount == 1 ? "" : "s")}"
