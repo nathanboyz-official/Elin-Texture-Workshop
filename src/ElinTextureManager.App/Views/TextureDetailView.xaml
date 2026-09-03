@@ -177,9 +177,19 @@
                 <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyText}" />
             </Border>
 
-            <!-- ============ CURRENT WINNER ============ -->
-            <TextBlock Text="CURRENT ACTIVE TEXTURE" Style="{StaticResource SectionHeader}"
-                       Margin="0,22,0,8" />
+            <!-- ============ WHAT IS LOADED, AND WHAT IT REPLACED ============
+                 These are the two reference images: the one the game currently uses
+                 and the one it started from. Side by side, because that is the
+                 comparison the whole application exists to make, and stacking them
+                 pushed the list of alternatives off the bottom of the screen. -->
+            <Grid Margin="0,22,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                    <TextBlock Text="CURRENT ACTIVE TEXTURE" Style="{StaticResource SectionHeader}" />
 
             <Border Style="{StaticResource Card}">
                 <Grid>
@@ -188,7 +198,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Width="260" Height="260"
+                    <Border Grid.Column="0" Width="224" Height="224"
                             Background="{StaticResource CheckerboardBrush}"
                             CornerRadius="{StaticResource RadiusControl}" ClipToBounds="True">
                         <Image Source="{Binding WinnerVersion.Image}" Stretch="Uniform"
@@ -202,12 +212,53 @@
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource TextPrimaryBrush}" />
 
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Border Style="{StaticResource Pill}"
-                                    Background="{StaticResource SurfaceHoverBrush}">
-                                <TextBlock Text="{Binding ConfidenceLabel}" FontSize="10.5"
+                        <WrapPanel Margin="0,8,0,0">
+                            <Border Style="{StaticResource BadgeNeutral}" Margin="0,0,6,4">
+                                <TextBlock Text="{Binding ConfidenceLabel}"
+                                           Style="{StaticResource BadgeText}" FontWeight="Normal"
                                            Foreground="{StaticResource TextSecondaryBrush}" />
                             </Border>
+
+                            <!-- Gold, because this one is here by your decision. -->
+                            <Border Style="{StaticResource BadgeGold}" Margin="0,0,6,4"
+                                    Visibility="{Binding HasOverride,
+                                                Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource BadgeText}"
+                                           Foreground="{StaticResource GoldBrush}"
+                                           Text="{Binding OverrideSourceName,
+                                                  StringFormat={}YOUR OVERRIDE &#x2014; {0}}" />
+                            </Border>
+                        </WrapPanel>
+
+                        <!-- The facts about the file the game is actually loading.
+                             They were only on the source cards below, which meant
+                             scrolling to answer "what am I looking at". -->
+                        <StackPanel Margin="0,14,0,0"
+                                    Visibility="{Binding WinnerVersion,
+                                                Converter={StaticResource NotNullToVis}}">
+                            <TextBlock Style="{StaticResource MonoText}">
+                                <Run Text="Workshop ID" Foreground="{StaticResource TextMutedBrush}" />
+                                <Run Text="{Binding WinnerVersion.WorkshopId, Mode=OneWay,
+                                            TargetNullValue=-}"
+                                     Foreground="{StaticResource TextSecondaryBrush}" />
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource MonoText}">
+                                <Run Text="Size" Foreground="{StaticResource TextMutedBrush}" />
+                                <Run Text="{Binding WinnerVersion.Dimensions, Mode=OneWay}"
+                                     Foreground="{StaticResource TextSecondaryBrush}" />
+                                <Run Text="&#x00B7;" Foreground="{StaticResource TextMutedBrush}" />
+                                <Run Text="{Binding WinnerVersion.FileSizeText, Mode=OneWay}"
+                                     Foreground="{StaticResource TextSecondaryBrush}" />
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource MonoText}"
+                                       ToolTip="{Binding WinnerVersion.HashFull}">
+                                <Run Text="SHA-256" Foreground="{StaticResource TextMutedBrush}" />
+                                <Run Text="{Binding WinnerVersion.HashShort, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource MonoText}" Margin="0,4,0,0"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding WinnerVersion.FullPath}"
+                                       ToolTip="{Binding WinnerVersion.FullPath}" />
                         </StackPanel>
 
                         <!-- Honest about what cannot be determined locally -->
@@ -239,6 +290,26 @@
                     </StackPanel>
                 </Grid>
             </Border>
+                </StackPanel>
+
+                <!-- The base game's own file, when it ships as a loose one. -->
+                <StackPanel Grid.Column="1" Width="292">
+                    <TextBlock Text="ORIGINAL" Style="{StaticResource SectionHeader}" />
+
+                    <ContentControl Content="{Binding Original}"
+                                    ContentTemplate="{StaticResource VersionCard}"
+                                    HorizontalAlignment="Left"
+                                    Visibility="{Binding HasOriginal,
+                                                Converter={StaticResource BoolToVis}}" />
+
+                    <Border Style="{StaticResource Card}" Padding="12,10"
+                            Visibility="{Binding HasOriginal,
+                                        Converter={StaticResource InverseBoolToVis}}">
+                        <TextBlock Text="{Binding OriginalNote}" TextWrapping="Wrap" FontSize="11.5"
+                                   Foreground="{StaticResource TextMutedBrush}" />
+                    </Border>
+                </StackPanel>
+            </Grid>
 
             <!-- ============ SIDE-BY-SIDE COMPARISON ============ -->
             <Grid Margin="0,22,0,0"
@@ -338,27 +409,6 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
             </StackPanel>
-
-            <!-- ============ THE ORIGINAL ============ -->
-            <TextBlock Text="ORIGINAL (BEFORE ANY MOD)" Style="{StaticResource SectionHeader}"
-                       Margin="0,24,0,10" />
-
-            <StackPanel Visibility="{Binding HasOriginal, Converter={StaticResource BoolToVis}}">
-                <TextBlock Style="{StaticResource SubtleText}" Margin="0,0,0,10" MaxWidth="760"
-                           HorizontalAlignment="Left"
-                           Text="The base game's own file, read straight from Package\_Elona. Selecting it copies it into your override package, which puts the original back without disabling anything." />
-
-                <ContentControl Content="{Binding Original}"
-                                ContentTemplate="{StaticResource VersionCard}"
-                                HorizontalAlignment="Left" />
-            </StackPanel>
-
-            <Border Style="{StaticResource Card}" Padding="12,10" MaxWidth="760"
-                    HorizontalAlignment="Left"
-                    Visibility="{Binding HasOriginal, Converter={StaticResource InverseBoolToVis}}">
-                <TextBlock Text="{Binding OriginalNote}" TextWrapping="Wrap"
-                           Foreground="{StaticResource TextSecondaryBrush}" />
-            </Border>
 
             <!-- ============ AVAILABLE VERSIONS ============ -->
             <TextBlock Text="AVAILABLE VERSIONS" Style="{StaticResource SectionHeader}"
