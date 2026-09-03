@@ -84,6 +84,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Settings = new SettingsViewModel(_app, OnPathsChanged, OnDisplayChanged);
         News = new NewsViewModel(_app);
         Health = new HealthViewModel(_app, OnDataChanged);
+        Identify = new IdentifyViewModel(_app, OpenTextureDetail);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(userRequested: true), () => !IsScanning);
         NavigateCommand = new RelayCommand(p => Navigate(p as string));
@@ -105,6 +106,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public NewsViewModel News { get; }
 
     public HealthViewModel Health { get; }
+
+    public IdentifyViewModel Identify { get; }
 
     /// <summary>Every nav entry, in one list, for badges and selection.</summary>
     public ObservableCollection<NavItem> NavItems { get; } = new();
@@ -257,6 +260,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             "The order Elin loads mods in, which decides who wins when you have not "
             + "chosen for yourself.");
 
+        Add(ManagementNav, "Identify", "Identify",
+            "Paste a screenshot and find which mod supplies what is in it.");
         Add(ManagementNav, "Health", "Mod Health",
             "Broken calls, duplicate code and load-order rot - read from the mods themselves.");
 
@@ -324,6 +329,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             case "LoadOrder":
                 LoadOrder.Apply();
                 CurrentPage = LoadOrder;
+                break;
+            case "Identify":
+                CurrentPage = Identify;
                 break;
             case "Health":
                 CurrentPage = Health;

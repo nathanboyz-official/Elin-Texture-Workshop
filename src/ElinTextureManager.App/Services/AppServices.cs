@@ -28,6 +28,11 @@ public sealed class AppServices : IDisposable
     /// <summary>The base game's own loose images, used to show a texture's original.</summary>
     public VanillaAssets Vanilla { get; private set; } = new();
 
+    /// <summary>Colour index behind the reverse lookup. Built on demand, cached on disk.</summary>
+    public SignatureIndex Signatures { get; }
+
+    public AppServices() => Signatures = new SignatureIndex(Cache);
+
     public LoadOrderDocument LoadOrder { get; set; } = new();
     public Dictionary<string, TextureWinner> Winners { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 

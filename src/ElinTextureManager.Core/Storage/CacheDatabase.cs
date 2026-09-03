@@ -3,6 +3,13 @@ using Microsoft.Data.Sqlite;
 
 namespace ElinTextureManager.Core.Storage;
 
+/// <summary>One cached colour signature, keyed by absolute path.</summary>
+public sealed record CachedSignature(
+    string Path,
+    long Size,
+    long ModifiedTicks,
+    byte[] Blob);
+
 /// <summary>One cached texture record, keyed by absolute path.</summary>
 public sealed record CachedTexture(
     string Path,
@@ -58,6 +65,18 @@ public sealed class CacheDatabase : IDisposable
                     );
                     """);
                 Execute(connection, "CREATE INDEX IF NOT EXISTS ix_textures_hash ON textures(hash);");
+
+                // Colour signatures for the reverse lookup. A separate table because it
+                // is filled by a different pass: building one means decoding the image,
+                // which the scanner deliberately does not do.
+                Execute(connection, """
+                    CREATE TABLE IF NOT EXISTS signatures (
+                        path           TEXT PRIMARY KEY,
+                        size           INTEGER NOT NULL,
+                        modified_ticks INTEGER NOT NULL,
+                        blob           BLOB NOT NULL
+                    );
+                    """);
 
                 _connection = connection;
                 AppLog.Info($"Texture cache opened: {databaseFile}");
@@ -169,6 +188,89 @@ public sealed class CacheDatabase : IDisposable
         }
     }
 
+    /// <summary>
+    /// Loads every stored colour signature. The caller checks size and modified time
+    /// against the file on disk: a repainted texture keeps its path.
+    /// </summary>
+    public Dictionary<string, CachedSignature> LoadSignatures()
+    {
+        var map = new Dictionary<string, CachedSignature>(StringComparer.OrdinalIgnoreCase);
+
+        lock (_gate)
+        {
+            if (_connection is null) return map;
+
+            try
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = "SELECT path, size, modified_ticks, blob FROM signatures;";
+                using var reader = cmd.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    var path = reader.GetString(0);
+                    var blob = (byte[])reader.GetValue(3);
+                    map[path] = new CachedSignature(path, reader.GetInt64(1), reader.GetInt64(2), blob);
+                }
+
+                AppLog.Info($"Signature cache: {map.Count} entries loaded.");
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Could not read the signature cache", ex);
+            }
+        }
+
+        return map;
+    }
+
+    /// <summary>Upserts a batch of signatures inside one transaction.</summary>
+    public void SaveSignatures(IEnumerable<CachedSignature> signatures)
+    {
+        lock (_gate)
+        {
+            if (_connection is null) return;
+
+            try
+            {
+                using var tx = _connection.BeginTransaction();
+                using var cmd = _connection.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = """
+                    INSERT INTO signatures (path, size, modified_ticks, blob)
+                    VALUES ($path, $size, $ticks, $blob)
+                    ON CONFLICT(path) DO UPDATE SET
+                        size = excluded.size,
+                        modified_ticks = excluded.modified_ticks,
+                        blob = excluded.blob;
+                    """;
+
+                var pPath = cmd.CreateParameter(); pPath.ParameterName = "$path"; cmd.Parameters.Add(pPath);
+                var pSize = cmd.CreateParameter(); pSize.ParameterName = "$size"; cmd.Parameters.Add(pSize);
+                var pTicks = cmd.CreateParameter(); pTicks.ParameterName = "$ticks"; cmd.Parameters.Add(pTicks);
+                var pBlob = cmd.CreateParameter(); pBlob.ParameterName = "$blob"; cmd.Parameters.Add(pBlob);
+
+                var count = 0;
+                foreach (var s in signatures)
+                {
+                    pPath.Value = s.Path;
+                    pSize.Value = s.Size;
+                    pTicks.Value = s.ModifiedTicks;
+                    pBlob.Value = s.Blob;
+                    cmd.ExecuteNonQuery();
+                    count++;
+                }
+
+                tx.Commit();
+                AppLog.Debug($"Signature cache: {count} entries written.");
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Could not write the signature cache", ex);
+            }
+        }
+    }
+
     /// <summary>Drops rows for files that no longer exist, keeping the cache from growing forever.</summary>
     public void PruneMissing(IReadOnlySet<string> livePaths)
     {
@@ -178,13 +280,21 @@ public sealed class CacheDatabase : IDisposable
 
             try
             {
-                var stale = LoadAll().Keys.Where(p => !livePaths.Contains(p)).ToList();
+                var stale = LoadAll().Keys
+                    .Concat(LoadSignatures().Keys)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Where(p => !livePaths.Contains(p))
+                    .ToList();
+
                 if (stale.Count == 0) return;
 
                 using var tx = _connection.BeginTransaction();
                 using var cmd = _connection.CreateCommand();
                 cmd.Transaction = tx;
-                cmd.CommandText = "DELETE FROM textures WHERE path = $path;";
+                // Both tables are keyed by path, and an unsubscribed mod takes its
+                // signatures with it just as it takes its metadata.
+                cmd.CommandText = "DELETE FROM textures WHERE path = $path;"
+                                  + "DELETE FROM signatures WHERE path = $path;";
                 var p = cmd.CreateParameter(); p.ParameterName = "$path"; cmd.Parameters.Add(p);
 
                 foreach (var path in stale) { p.Value = path; cmd.ExecuteNonQuery(); }

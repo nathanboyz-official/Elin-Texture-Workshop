@@ -71,6 +71,11 @@ public static class NavIcons
         P("M3.4,2.6 L12.6,2.6 L12.6,13.4 L3.4,13.4 Z M5.8,5.6 L10.2,5.6 "
           + "M5.8,8 L10.2,8 M5.8,10.4 L8.6,10.4");
 
+    /// <summary>A magnifier over a small frame: looking something up by its picture.</summary>
+    public static Geometry Identify { get; } =
+        P("M2.6,2.6 L8.4,2.6 L8.4,8.4 L2.6,8.4 Z M9.9,9.9 A2.6,2.6 0 1,1 9.89,9.9 Z "
+          + "M11.9,11.9 L14.2,14.2");
+
     /// <summary>A pulse line: the shape a diagnostic reading makes.</summary>
     public static Geometry Health { get; } =
         P("M1.5,8 L4.5,8 L6,4.5 L8.5,11.5 L10,8 L14.5,8");
@@ -95,6 +100,7 @@ public static class NavIcons
         "Mods" => Mods,
         "LoadOrder" => LoadOrder,
         "Health" => Health,
+        "Identify" => Identify,
         "News" => News,
         "Settings" => Settings,
         _ => null,

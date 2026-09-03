@@ -32,6 +32,9 @@
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:SettingsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:IdentifyViewModel}">
+            <views:IdentifyView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:HealthViewModel}">
             <views:HealthView />
         </DataTemplate>
