@@ -71,6 +71,10 @@ public static class NavIcons
         P("M3.4,2.6 L12.6,2.6 L12.6,13.4 L3.4,13.4 Z M5.8,5.6 L10.2,5.6 "
           + "M5.8,8 L10.2,8 M5.8,10.4 L8.6,10.4");
 
+    /// <summary>A pulse line: the shape a diagnostic reading makes.</summary>
+    public static Geometry Health { get; } =
+        P("M1.5,8 L4.5,8 L6,4.5 L8.5,11.5 L10,8 L14.5,8");
+
     /// <summary>Settings.</summary>
     public static Geometry Settings { get; } =
         P("M8,5.7 A2.3,2.3 0 1,1 7.99,5.7 Z M8,1.5 L8,3.3 M8,12.7 L8,14.5 "
@@ -90,6 +94,7 @@ public static class NavIcons
         "Overrides" => Overrides,
         "Mods" => Mods,
         "LoadOrder" => LoadOrder,
+        "Health" => Health,
         "News" => News,
         "Settings" => Settings,
         _ => null,

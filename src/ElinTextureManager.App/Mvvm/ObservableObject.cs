@@ -100,4 +100,7 @@ public sealed class AsyncRelayCommand : ICommand
             CommandManager.InvalidateRequerySuggested();
         }
     }
+
+    /// <summary>Same as RelayCommand: prod WPF after a state change it cannot see.</summary>
+    public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
 }

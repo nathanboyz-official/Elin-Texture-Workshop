@@ -83,6 +83,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         LoadOrder = new LoadOrderViewModel(_app, OnDataChanged);
         Settings = new SettingsViewModel(_app, OnPathsChanged, OnDisplayChanged);
         News = new NewsViewModel(_app);
+        Health = new HealthViewModel(_app, OnDataChanged);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(userRequested: true), () => !IsScanning);
         NavigateCommand = new RelayCommand(p => Navigate(p as string));
@@ -102,6 +103,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public LoadOrderViewModel LoadOrder { get; }
     public SettingsViewModel Settings { get; }
     public NewsViewModel News { get; }
+
+    public HealthViewModel Health { get; }
 
     /// <summary>Every nav entry, in one list, for badges and selection.</summary>
     public ObservableCollection<NavItem> NavItems { get; } = new();
@@ -254,6 +257,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             "The order Elin loads mods in, which decides who wins when you have not "
             + "chosen for yourself.");
 
+        Add(ManagementNav, "Health", "Mod Health",
+            "Broken calls, duplicate code and load-order rot - read from the mods themselves.");
+
         Add(SystemNav, "News", "Game News", "Elin's own Steam announcements.");
         Add(SystemNav, "Settings", "Settings", "Paths, scanning and appearance.");
     }
@@ -318,6 +324,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             case "LoadOrder":
                 LoadOrder.Apply();
                 CurrentPage = LoadOrder;
+                break;
+            case "Health":
+                CurrentPage = Health;
+                // Same pattern as News: show the page at once, fill it in when the
+                // assembly read lands. It runs once and then only on demand.
+                _ = Health.RunAsync();
                 break;
             case "News":
                 CurrentPage = News;
@@ -421,6 +433,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             await _app.RefreshAsync(progress);
 
+            // The library changed underneath it, so anything Health found is about a
+            // set of mods that no longer exists.
+            Health.Invalidate();
+
             StatusText = _app.Scan.Errors.Count == 0
                 ? "Up to date"
                 : $"Up to date · {_app.Scan.Errors.Count} items skipped (see log)";
@@ -459,6 +475,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             {
                 "Conflicts" => ConflictCount > 0 ? ConflictCount.ToString() : null,
                 "Overrides" => OverrideCount > 0 ? OverrideCount.ToString() : null,
+                // Only after a run: an empty badge here means "not checked", not "clean".
+                "Health" => Health.BrokenCount > 0 ? Health.BrokenCount.ToString() : null,
                 _ => null,
             };
         }

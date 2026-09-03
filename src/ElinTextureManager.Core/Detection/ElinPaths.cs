@@ -24,6 +24,13 @@ public sealed class ElinPaths
     public string LoadOrderFile => Path.Combine(ElinRoot, "loadorder.txt");
     public string ExecutablePath => Path.Combine(ElinRoot, "Elin.exe");
 
+    /// <summary>
+    /// The game's own compiled code. Mods are checked against this: a method a mod calls
+    /// that is not defined here is a MissingMethodException waiting to happen.
+    /// Note it is Elin.dll rather than the Assembly-CSharp.dll a Unity game usually has.
+    /// </summary>
+    public string GameAssembly => Path.Combine(ElinRoot, "Elin_Data", "Managed", "Elin.dll");
+
     /// <summary>Elin's own user-level texture replace folder (Elin\User\Texture Replace).</summary>
     public string UserTextureReplace => Path.Combine(ElinRoot, "User", TextureReplaceFolder);
 

@@ -1,0 +1,261 @@
+<UserControl x:Class="ElinTextureManager.App.Views.HealthView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:HealthViewModel}">
+
+    <UserControl.Resources>
+
+        <!-- The 3px bar down the left of a card. Severity is read at a glance, before words. -->
+        <Style x:Key="SeverityBar" TargetType="Border">
+            <Setter Property="Width" Value="3" />
+            <Setter Property="Background" Value="{StaticResource BlueDimBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsBroken}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DangerBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsConflict}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource RustBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SeverityPill" TargetType="Border" BasedOn="{StaticResource Pill}">
+            <Setter Property="Background" Value="{StaticResource BlueToneBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsBroken}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DangerToneBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsConflict}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource RustToneBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SeverityPillText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource BlueBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsBroken}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsConflict}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource RustBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- === HEADER === -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Text="Mod Health" Style="{StaticResource PageTitle}" />
+                <TextBlock Style="{StaticResource SubtleText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                           MaxWidth="720" HorizontalAlignment="Left"
+                           Text="Elin's crash dialog names the mods wrapping a failed call, not the one that made it - so the mod at the top of the trace is usually innocent. These checks read the code and name the mod actually responsible." />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                <TextBlock Text="{Binding RanAtText}" Style="{StaticResource SubtleText}"
+                           VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Button Content="Run checks" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding RunCommand}" IsEnabled="{Binding IsIdle}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- === SUMMARY STRIP === -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="16,12" Margin="0,0,0,12">
+            <Grid>
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel Margin="0,0,28,0">
+                        <TextBlock Text="{Binding BrokenCount}" FontSize="24" FontWeight="SemiBold"
+                                   Foreground="{StaticResource DangerBrush}" />
+                        <TextBlock Text="BROKEN" Style="{StaticResource SectionHeader}" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <!-- No CONFLICT column: nothing here can produce that severity. Two
+                         mods patching the same method is a notice, not a decision to make,
+                         and a counter that is structurally always zero reads as a check
+                         that ran and passed. -->
+                    <StackPanel>
+                        <TextBlock Text="{Binding NoticeCount}" FontSize="24" FontWeight="SemiBold"
+                                   Foreground="{StaticResource BlueBrush}" />
+                        <TextBlock Text="NOTICE" Style="{StaticResource SectionHeader}" Margin="0,2,0,0" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Text="{Binding ScopeText}" Style="{StaticResource MonoText}"
+                           HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+            </Grid>
+        </Border>
+
+        <!-- === STATUS === -->
+        <StackPanel Grid.Row="2">
+            <Border Style="{StaticResource Card}" Padding="12,10" Margin="0,0,0,12"
+                    Visibility="{Binding HasStatusMessage, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </Border>
+            <Border Background="{StaticResource DangerToneBrush}"
+                    BorderBrush="{StaticResource DangerBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource RadiusPanel}" Padding="12,10" Margin="0,0,0,12"
+                    Visibility="{Binding HasGameAssemblyError, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="The game's own assembly could not be read"
+                               Foreground="{StaticResource DangerBrush}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding GameAssemblyError}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Style="{StaticResource MonoText}" />
+                    <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Without it the API check cannot run, so calls into a method the game no longer has will go unreported." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- === FINDINGS === -->
+        <Grid Grid.Row="3">
+
+            <TextBlock VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,20,0,0"
+                       Style="{StaticResource SubtleText}" Text="Reading mod assemblies..."
+                       Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}" />
+
+            <Border Style="{StaticResource Card}" Padding="18,16" VerticalAlignment="Top"
+                    Background="{StaticResource MossToneBrush}"
+                    BorderBrush="{StaticResource MossBrush}"
+                    Visibility="{Binding IsClean, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="Nothing wrong found" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource MossBrush}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="0,5,0,0" TextWrapping="Wrap"
+                               Text="Every mod that ships code calls methods this version of Elin still has, nothing is shipped twice, and the load order points at folders that exist." />
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0"
+                          Visibility="{Binding HasFindings, Converter={StaticResource BoolToVis}}">
+                <ItemsControl ItemsSource="{Binding Findings}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="{StaticResource RadiusPanel}" Margin="0,0,0,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" Style="{StaticResource SeverityBar}"
+                                            CornerRadius="2,0,0,2" />
+
+                                    <StackPanel Grid.Column="1" Margin="14,12,14,12">
+
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Style="{StaticResource SeverityPill}" Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding SeverityLabel}"
+                                                           Style="{StaticResource SeverityPillText}" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Check}" Style="{StaticResource MonoText}"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+
+                                        <TextBlock Text="{Binding Title}" FontSize="14.5" FontWeight="SemiBold"
+                                                   TextWrapping="Wrap" Margin="0,7,0,0"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+
+                                        <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                   FontSize="12.5" MaxWidth="760" HorizontalAlignment="Left"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+
+                                        <TextBlock Text="{Binding Suggestion}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                   FontSize="12.5" MaxWidth="760" HorizontalAlignment="Left"
+                                                   Foreground="{StaticResource GoldBrush}"
+                                                   Visibility="{Binding HasSuggestion,
+                                                               Converter={StaticResource BoolToVis}}" />
+
+                                        <!-- Mods named by this finding, each with the switch to turn it off -->
+                                        <ItemsControl ItemsSource="{Binding Mods}" Margin="0,10,0,0"
+                                                      Visibility="{Binding HasMods,
+                                                                  Converter={StaticResource BoolToVis}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{StaticResource SurfaceSunkenBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="{StaticResource RadiusChip}"
+                                                            Padding="9,4" Margin="0,0,7,7">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontSize="12"
+                                                                       VerticalAlignment="Center"
+                                                                       MaxWidth="260"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                                            <TextBlock Text="off" FontSize="10" Margin="7,0,0,0"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       Visibility="{Binding IsAlreadyOff,
+                                                                                   Converter={StaticResource BoolToVis}}" />
+                                                            <Button Content="Turn off" Margin="8,0,0,0"
+                                                                    Padding="7,1" FontSize="10.5"
+                                                                    Style="{StaticResource SubtleButton}"
+                                                                    Visibility="{Binding CanDisable,
+                                                                                Converter={StaticResource BoolToVis}}"
+                                                                    Command="{Binding DataContext.DisableModCommand,
+                                                                              RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- Evidence: folded, because the headline is the point -->
+                                        <Button Margin="0,4,0,0" HorizontalAlignment="Left"
+                                                Content="{Binding ExpandLabel}"
+                                                Style="{StaticResource SubtleButton}"
+                                                Visibility="{Binding HasEvidence,
+                                                            Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.ToggleExpandCommand,
+                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}" />
+
+                                        <Border Background="{StaticResource SurfaceSunkenBrush}"
+                                                CornerRadius="{StaticResource RadiusControl}"
+                                                Padding="11,9" Margin="0,8,0,0"
+                                                Visibility="{Binding Expanded,
+                                                            Converter={StaticResource BoolToVis}}">
+                                            <ItemsControl ItemsSource="{Binding Evidence}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                                                                   Margin="0,0,0,3"
+                                                                   Style="{StaticResource MonoText}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

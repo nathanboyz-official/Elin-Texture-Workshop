@@ -1,0 +1,373 @@
+using ElinTextureManager.Core.Detection;
+using ElinTextureManager.Core.LoadOrder;
+using ElinTextureManager.Core.Logging;
+using ElinTextureManager.Core.Model;
+using ElinTextureManager.Core.Overrides;
+
+namespace ElinTextureManager.Core.Health;
+
+/// <summary>
+/// Answers "why is my game broken?" by inspecting what is installed rather than by
+/// reading the crash dialog, which names the Harmony patches around a failing call and
+/// so usually accuses an innocent mod.
+///
+/// Nothing here loads or executes mod code; every check reads metadata and files.
+/// </summary>
+public sealed class HealthScanner
+{
+    public const string ApiCheck = "Game API";
+    public const string DuplicateCheck = "Duplicate code";
+    public const string PatchCheck = "Patch conflict";
+    public const string LoadOrderCheck = "Load order";
+    public const string VersionCheck = "Version drift";
+
+    public HealthReport Scan(ElinPaths paths, ScanResult scan, LoadOrderDocument loadOrder)
+    {
+        var report = new HealthReport();
+
+        var codeMods = scan.Mods
+            .Where(m => m.SourceType != TextureSourceType.Vanilla)
+            .Select(m => (Mod: m, Dlls: FindAssemblies(m.Directory)))
+            .Where(x => x.Dlls.Count > 0)
+            .ToList();
+
+        report.CodeModCount = codeMods.Count;
+
+        CheckApi(paths, codeMods, report);
+        CheckDuplicateAssemblies(codeMods, report);
+        CheckPatchConflicts(codeMods, report);
+        CheckLoadOrder(paths, scan, loadOrder, report);
+        CheckVersions(paths, codeMods, report);
+
+        report.Findings.Sort((a, b) => a.Severity != b.Severity
+            ? a.Severity.CompareTo(b.Severity)
+            : string.Compare(a.Title, b.Title, StringComparison.CurrentCultureIgnoreCase));
+
+        AppLog.Info($"Health scan: {report.Findings.Count} findings across "
+                    + $"{report.CodeModCount} mods that ship code.");
+        return report;
+    }
+
+    private static List<string> FindAssemblies(string dir)
+    {
+        try
+        {
+            return Directory.GetFiles(dir, "*.dll", SearchOption.AllDirectories)
+                .Where(AssemblyIndex.IsManaged)
+                .ToList();
+        }
+        catch { return new List<string>(); }
+    }
+
+    // ---- 1. does every method a mod calls still exist? ----
+
+    private static void CheckApi(ElinPaths paths,
+        List<(ModPackage Mod, List<string> Dlls)> codeMods, HealthReport report)
+    {
+        if (!File.Exists(paths.GameAssembly))
+        {
+            report.GameAssemblyError = $"Game assembly not found at {paths.GameAssembly}.";
+            return;
+        }
+
+        var defined = AssemblyIndex.Defined(paths.GameAssembly);
+        report.GameMethodCount = defined.Count;
+
+        if (defined.Count == 0)
+        {
+            report.GameAssemblyError = "The game assembly could not be read, so mods "
+                                       + "cannot be checked against it.";
+            return;
+        }
+
+        var exact = defined.Select(m => m.Key).ToHashSet(StringComparer.Ordinal);
+        var byName = defined.GroupBy(m => $"{m.Type}.{m.Name}", StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Select(m => m.Parameters).Distinct().ToList(),
+                StringComparer.Ordinal);
+
+        foreach (var (mod, dlls) in codeMods)
+        {
+            var bad = new List<string>();
+
+            foreach (var dll in dlls)
+            {
+                foreach (var call in AssemblyIndex.Referenced(dll))
+                {
+                    var name = $"{call.Type}.{call.Name}";
+
+                    // Only judge types the game actually declares; everything else
+                    // belongs to some library this check knows nothing about.
+                    if (!byName.TryGetValue(name, out var overloads)) continue;
+                    if (exact.Contains(call.Key)) continue;
+
+                    bad.Add($"{Path.GetFileName(dll)} calls {call}"
+                            + $"  —  the game has {string.Join(" | ", overloads.Select(p => $"({p})"))}");
+                }
+            }
+
+            if (bad.Count == 0) continue;
+
+            var finding = new HealthFinding
+            {
+                Severity = HealthSeverity.Broken,
+                Check = ApiCheck,
+                Title = $"{mod.Name} calls a method this version of Elin no longer has",
+                Detail = "The mod was built against an older Elin. When it reaches this "
+                         + "call the game throws MissingMethodException and shows "
+                         + "\"A mod is incompatible with your game version\". The error "
+                         + "names the patches around the call, not this mod.",
+                Suggestion = "Disable this mod, or update it if the author has published "
+                             + "a build for the current game version.",
+            };
+            finding.ModKeys.Add(mod.Key);
+            finding.ModNames.Add(mod.Name);
+            finding.Evidence.AddRange(bad.Distinct().Take(8));
+            report.Findings.Add(finding);
+        }
+
+        report.ScannedAssemblies = codeMods.Sum(c => c.Dlls.Count);
+    }
+
+    // ---- 2. is the same assembly installed twice? ----
+
+    private static void CheckDuplicateAssemblies(
+        List<(ModPackage Mod, List<string> Dlls)> codeMods, HealthReport report)
+    {
+        var byName = new Dictionary<string, List<(ModPackage Mod, string Path)>>(
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (mod, dlls) in codeMods)
+        foreach (var dll in dlls)
+        {
+            var name = Path.GetFileName(dll);
+            if (!byName.TryGetValue(name, out var list)) byName[name] = list = new();
+            list.Add((mod, dll));
+        }
+
+        foreach (var (name, owners) in byName)
+        {
+            var mods = owners.Select(o => o.Mod).DistinctBy(m => m.Key).ToList();
+            if (mods.Count < 2) continue;
+
+            var finding = new HealthFinding
+            {
+                Severity = HealthSeverity.Broken,
+                Check = DuplicateCheck,
+                Title = $"{mods.Count} mods each ship {name}",
+                Detail = "Two copies of the same assembly define the same types. Loading "
+                         + "both is a TypeLoadException, usually reported as "
+                         + "\"Failure has occurred while loading a type\".",
+                Suggestion = "Keep one. Where one is a newer community fix of the other, "
+                             + "keep the newer and disable the original.",
+            };
+
+            foreach (var m in mods) { finding.ModKeys.Add(m.Key); finding.ModNames.Add(m.Name); }
+            foreach (var o in owners)
+                finding.Evidence.Add($"{o.Mod.Name}  v{o.Mod.Version ?? "?"}  —  {o.Path}");
+
+            report.Findings.Add(finding);
+        }
+    }
+
+    // ---- 3. do two mods patch the same game method? ----
+
+    private static void CheckPatchConflicts(
+        List<(ModPackage Mod, List<string> Dlls)> codeMods, HealthReport report)
+    {
+        var byTarget = new Dictionary<string, List<ModPackage>>(StringComparer.Ordinal);
+
+        foreach (var (mod, dlls) in codeMods)
+        foreach (var dll in dlls)
+        foreach (var target in AssemblyIndex.PatchTargets(dll))
+        {
+            // A bare type or method name is too vague to call a conflict on.
+            if (!target.Contains('.')) continue;
+
+            if (!byTarget.TryGetValue(target, out var list)) byTarget[target] = list = new();
+            if (!list.Any(m => m.Key == mod.Key)) list.Add(mod);
+        }
+
+        var shared = byTarget.Where(p => p.Value.Count >= 2)
+            .OrderByDescending(p => p.Value.Count)
+            .ThenBy(p => p.Key, StringComparer.Ordinal)
+            .ToList();
+
+        if (shared.Count == 0) return;
+
+        // One finding, not one per method. Mods sharing a patch target is ordinary - a
+        // real library has dozens - and raising each as its own alarm would bury the
+        // findings that are actually broken. This is a place to look when a feature
+        // stops working, not a list of faults.
+        var f = new HealthFinding
+        {
+            Severity = HealthSeverity.Notice,
+            Check = PatchCheck,
+            Title = $"{shared.Count} game methods are changed by more than one mod",
+            Detail = "This is normal and usually harmless: the patches run in load order "
+                     + "and most do not interfere. It matters when a mod's feature quietly "
+                     + "does nothing, or when a mod warns you itself - Better Custom "
+                     + "Sprites is one that does. The methods below are the crowded ones.",
+            Suggestion = "Only act on this if you are seeing a problem in that area, and "
+                         + "start with the most crowded method.",
+        };
+
+        foreach (var (target, mods) in shared.Take(12))
+        {
+            f.Evidence.Add($"{target}  —  {string.Join(", ", mods.Select(m => m.Name))}");
+            foreach (var m in mods)
+            {
+                if (f.ModKeys.Contains(m.Key)) continue;
+                f.ModKeys.Add(m.Key);
+                f.ModNames.Add(m.Name);
+            }
+        }
+
+        if (shared.Count > 12) f.Evidence.Add($"... and {shared.Count - 12} more");
+
+        report.Findings.Add(f);
+    }
+
+    // ---- 4. is loadorder.txt in a state the game can act on? ----
+
+    private static void CheckLoadOrder(ElinPaths paths, ScanResult scan,
+        LoadOrderDocument doc, HealthReport report)
+    {
+        if (!File.Exists(paths.LoadOrderFile))
+        {
+            report.Findings.Add(new HealthFinding
+            {
+                Severity = HealthSeverity.Notice,
+                Check = LoadOrderCheck,
+                Title = "Elin has not written a load order yet",
+                Detail = "loadorder.txt does not exist. Every installed mod loads, and "
+                         + "turning one off here creates the file.",
+            });
+            return;
+        }
+
+        // Paths whose letter case differs from disk. Windows opens them either way, so
+        // the mod scans fine and looks right here - but the game matches on the string,
+        // so a mod switched off would quietly stay switched on in play.
+        var misCased = doc.Entries
+            .Where(e => e.IsParsed)
+            .Where(e => !string.Equals(SafePath.TrueCase(e.Path), e.Path, StringComparison.Ordinal))
+            .Where(e => Directory.Exists(e.Path))
+            .ToList();
+
+        if (misCased.Count > 0)
+        {
+            var f = new HealthFinding
+            {
+                Severity = HealthSeverity.Broken,
+                Check = LoadOrderCheck,
+                Title = $"{misCased.Count} load-order lines are spelt differently from the folders on disk",
+                Detail = "Elin finds each mod by comparing this path text, and the "
+                         + "comparison is case-sensitive. A line it cannot match is a line "
+                         + "it ignores, so these mods load whatever their on/off switch says.",
+                Suggestion = "Apply any change on the Mods page - saving rewrites these "
+                             + "lines in the spelling the game uses.",
+            };
+            foreach (var e in misCased.Take(8)) f.Evidence.Add(e.Path);
+            report.Findings.Add(f);
+        }
+
+        // Entries pointing at folders that are gone: unsubscribed, but still listed.
+        var orphans = doc.Entries.Where(e => e.IsParsed && !Directory.Exists(e.Path)).ToList();
+        if (orphans.Count > 0)
+        {
+            var f = new HealthFinding
+            {
+                Severity = HealthSeverity.Notice,
+                Check = LoadOrderCheck,
+                Title = $"{orphans.Count} load-order entries point at folders that are gone",
+                Detail = "These are mods you have unsubscribed from. They are harmless - "
+                         + "the game skips them - but they make the list longer than it needs to be.",
+            };
+            foreach (var e in orphans.Take(8)) f.Evidence.Add(e.Path);
+            report.Findings.Add(f);
+        }
+
+        var unparsed = doc.Entries.Where(e => !e.IsParsed).ToList();
+        if (unparsed.Count > 0)
+        {
+            var f = new HealthFinding
+            {
+                Severity = HealthSeverity.Notice,
+                Check = LoadOrderCheck,
+                Title = $"{unparsed.Count} load-order lines are in a format this application does not recognise",
+                Detail = "They are preserved exactly as they are and never rewritten, but "
+                         + "their on/off state cannot be changed from here.",
+            };
+            foreach (var e in unparsed.Take(5)) f.Evidence.Add(e.Path);
+            report.Findings.Add(f);
+        }
+    }
+
+    // ---- 5. is a mod built for a much older Elin? ----
+
+    private static void CheckVersions(ElinPaths paths,
+        List<(ModPackage Mod, List<string> Dlls)> codeMods, HealthReport report)
+    {
+        var gameVersion = ReadGameVersion(paths);
+        if (gameVersion is null) return;
+
+        var behind = new List<(ModPackage Mod, Version V)>();
+
+        foreach (var (mod, _) in codeMods)
+        {
+            if (!TryParseVersion(mod.Version, out var v)) continue;
+
+            // Only the minor line matters: mods track the Elin build they were made for,
+            // and a whole minor version behind is where the breaking changes live.
+            if (v.Major < gameVersion.Major || (v.Major == gameVersion.Major && v.Minor < gameVersion.Minor))
+                behind.Add((mod, v));
+        }
+
+        if (behind.Count == 0) return;
+
+        var finding = new HealthFinding
+        {
+            Severity = HealthSeverity.Notice,
+            Check = VersionCheck,
+            Title = $"{behind.Count} mods that ship code target an older Elin than you are running",
+            Detail = $"You are on {gameVersion}. These declare an older build. That is a "
+                     + "hint, not a verdict - plenty of mods keep working for versions, and "
+                     + "authors do not always bump the number. The Game API check above is "
+                     + "the one that proves breakage.",
+        };
+
+        foreach (var (mod, v) in behind.OrderBy(b => b.V))
+        {
+            finding.ModKeys.Add(mod.Key);
+            finding.ModNames.Add(mod.Name);
+            finding.Evidence.Add($"{mod.Name}  declares {v}");
+        }
+
+        report.Findings.Add(finding);
+    }
+
+    private static Version? ReadGameVersion(ElinPaths paths)
+    {
+        // The modding kit ships with the game and tracks its build.
+        var kit = Path.Combine(paths.PackageRoot, "_ModdingKit", "package.xml");
+        try
+        {
+            if (!File.Exists(kit)) return null;
+            var xml = System.Xml.Linq.XDocument.Load(kit);
+            var raw = xml.Root?.Elements()
+                .FirstOrDefault(e => string.Equals(e.Name.LocalName, "version",
+                    StringComparison.OrdinalIgnoreCase))?.Value;
+            return TryParseVersion(raw, out var v) ? v : null;
+        }
+        catch { return null; }
+    }
+
+    private static bool TryParseVersion(string? raw, out Version version)
+    {
+        version = new Version(0, 0);
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+
+        var cleaned = new string(raw.Trim().TakeWhile(c => char.IsDigit(c) || c == '.').ToArray());
+        return Version.TryParse(cleaned, out version!) && version is not null;
+    }
+}
