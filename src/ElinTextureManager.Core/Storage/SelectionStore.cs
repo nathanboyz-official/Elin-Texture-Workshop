@@ -143,6 +143,102 @@ public sealed class SelectionStore
         }
     }
 
+    /// <summary>How many selections a profile holds, for listing them.</summary>
+    public int CountIn(string profile)
+    {
+        lock (_gate)
+            return _doc.Profiles.TryGetValue(profile, out var map) ? map.Count : 0;
+    }
+
+    public bool HasProfile(string name)
+    {
+        lock (_gate) return _doc.Profiles.ContainsKey(name);
+    }
+
+    /// <summary>
+    /// Adds an empty profile, or one copied from another. Returns false if the name is
+    /// already taken - silently merging two profiles would lose a set of choices.
+    /// </summary>
+    public bool CreateProfile(string name, string? copyFrom = null)
+    {
+        lock (_gate)
+        {
+            name = name.Trim();
+            if (string.IsNullOrWhiteSpace(name) || _doc.Profiles.ContainsKey(name)) return false;
+
+            var map = new Dictionary<string, OverrideSelection>(StringComparer.OrdinalIgnoreCase);
+
+            if (copyFrom is not null && _doc.Profiles.TryGetValue(copyFrom, out var source))
+            {
+                foreach (var (id, selection) in source)
+                    map[id] = Copy(selection, name);
+            }
+
+            _doc.Profiles[name] = map;
+            return true;
+        }
+    }
+
+    public bool RenameProfile(string from, string to)
+    {
+        lock (_gate)
+        {
+            to = to.Trim();
+            if (string.IsNullOrWhiteSpace(to) || from == to) return false;
+            if (!_doc.Profiles.TryGetValue(from, out var map)) return false;
+            if (_doc.Profiles.ContainsKey(to)) return false;
+
+            _doc.Profiles.Remove(from);
+            foreach (var selection in map.Values) selection.Profile = to;
+            _doc.Profiles[to] = map;
+
+            if (_doc.ActiveProfile == from) _doc.ActiveProfile = to;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Deletes a profile. The last one cannot go: with no profiles there is nowhere for
+    /// the next selection to live.
+    /// </summary>
+    public bool DeleteProfile(string name)
+    {
+        lock (_gate)
+        {
+            if (_doc.Profiles.Count <= 1 || !_doc.Profiles.Remove(name)) return false;
+
+            if (_doc.ActiveProfile == name) _doc.ActiveProfile = _doc.Profiles.Keys.First();
+            return true;
+        }
+    }
+
+    /// <summary>Replaces a profile's contents wholesale, which is what importing a setup does.</summary>
+    public void ReplaceProfile(string name, IEnumerable<OverrideSelection> selections)
+    {
+        lock (_gate)
+        {
+            var map = new Dictionary<string, OverrideSelection>(StringComparer.OrdinalIgnoreCase);
+            foreach (var selection in selections) map[selection.TextureId] = Copy(selection, name);
+
+            _doc.Profiles[name] = map;
+        }
+    }
+
+    private static OverrideSelection Copy(OverrideSelection s, string profile) => new()
+    {
+        TextureId = s.TextureId,
+        FileName = s.FileName,
+        SourceModKey = s.SourceModKey,
+        SourceWorkshopId = s.SourceWorkshopId,
+        SourceModName = s.SourceModName,
+        SourcePath = s.SourcePath,
+        SourceHash = s.SourceHash,
+        SourceType = s.SourceType,
+        Kind = s.Kind,
+        SelectedUtc = s.SelectedUtc,
+        Profile = profile,
+    };
+
     /// <summary>Exports the active profile's selections for backup or sharing.</summary>
     public string ExportJson()
     {

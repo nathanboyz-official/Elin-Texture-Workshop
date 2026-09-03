@@ -1,0 +1,133 @@
+<UserControl x:Class="ElinTextureManager.App.Views.SetupsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:SetupsViewModel}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24,20,24,24" MaxWidth="900" HorizontalAlignment="Left">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- === HEADER === -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                <TextBlock Text="Setups" Style="{StaticResource PageTitle}" />
+                <TextBlock Style="{StaticResource SubtleText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Text="A profile is a saved set of texture choices. Switching one rewrites the override package so the game loads that set instead. A setup file carries a profile and every mod's on/off state to another machine." />
+            </StackPanel>
+
+            <Border Grid.Row="1" Style="{StaticResource Card}" Padding="12,10" Margin="0,0,0,12"
+                    Visibility="{Binding HasStatusMessage, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </Border>
+
+            <!-- === PROFILES === -->
+            <Border Grid.Row="2" Style="{StaticResource Card}" Padding="16" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="PROFILES" Style="{StaticResource SectionHeader}" />
+
+                    <ItemsControl ItemsSource="{Binding Profiles}" Margin="0,10,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,7" Padding="12,9"
+                                        CornerRadius="{StaticResource RadiusControl}"
+                                        Background="{StaticResource SurfaceSunkenBrush}"
+                                        BorderThickness="1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderBrush"
+                                                    Value="{StaticResource BorderBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                    <Setter Property="BorderBrush"
+                                                            Value="{StaticResource GoldBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+
+                                    <Grid>
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontSize="13.5"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                                        Background="{StaticResource GoldToneBrush}"
+                                                        Visibility="{Binding IsActive,
+                                                                    Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="IN USE" FontSize="9"
+                                                               Foreground="{StaticResource GoldBrush}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding DetailText}" Margin="0,3,0,0"
+                                                       Style="{StaticResource MonoText}" />
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                            <Button Content="Switch to" Style="{StaticResource SubtleButton}"
+                                                    Margin="0,0,6,0"
+                                                    Visibility="{Binding IsActive,
+                                                                Converter={StaticResource InverseBoolToVis}}"
+                                                    Command="{Binding DataContext.SwitchCommand,
+                                                              RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Delete" Style="{StaticResource SubtleButton}"
+                                                    Command="{Binding DataContext.DeleteCommand,
+                                                              RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBox Width="200" Padding="8,5" VerticalContentAlignment="Center"
+                                 Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{StaticResource SurfaceSunkenBrush}"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 BorderBrush="{StaticResource BorderBrush}" />
+                        <Button Content="New empty" Style="{StaticResource SubtleButton}" Margin="7,0,0,0"
+                                Command="{Binding CreateCommand}" />
+                        <Button Content="Copy of current" Style="{StaticResource SubtleButton}" Margin="6,0,0,0"
+                                Command="{Binding DuplicateCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- === SETUP FILES === -->
+            <Border Grid.Row="3" Style="{StaticResource Card}" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="SETUP FILES" Style="{StaticResource SectionHeader}" />
+
+                    <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,8,0,0"
+                               Text="Export writes a small text file: the Workshop ID and on/off state of every mod, and which mod you chose for each contested texture. It contains no images - nothing of anyone's art is copied or redistributed." />
+
+                    <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,7,0,0"
+                               Text="Import creates a new profile rather than changing one you built, applies the on/off states, and tells you which mods are not on this machine. It never subscribes to or downloads anything." />
+
+                    <TextBlock Text="{Binding ModSummary}" Style="{StaticResource MonoText}" Margin="0,10,0,0" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Export this setup" Style="{StaticResource PrimaryButton}"
+                                Margin="0,0,7,0" Command="{Binding ExportCommand}"
+                                IsEnabled="{Binding IsIdle}" />
+                        <Button Content="Import a setup" Style="{StaticResource SubtleButton}"
+                                Command="{Binding ImportCommand}" IsEnabled="{Binding IsIdle}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

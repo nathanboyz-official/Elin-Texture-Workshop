@@ -52,6 +52,20 @@ public sealed class CacheDatabase : IDisposable
 
                 connection.Open();
 
+                // A half-written database stays broken forever otherwise: every read
+                // fails, every launch logs the same error, and nothing ever rebuilds it.
+                // The cache holds nothing that cannot be recomputed, so the answer to a
+                // corrupt one is to throw it away.
+                if (!IsIntact(connection))
+                {
+                    AppLog.Error($"The texture cache at {databaseFile} is corrupt; rebuilding it.");
+                    connection.Close();
+                    SqliteConnection.ClearAllPools();
+                    DeleteDatabaseFiles(databaseFile);
+
+                    connection.Open();
+                }
+
                 Execute(connection, "PRAGMA journal_mode=WAL;");
                 Execute(connection, "PRAGMA synchronous=NORMAL;");
                 Execute(connection, """
@@ -87,6 +101,35 @@ public sealed class CacheDatabase : IDisposable
                              + "continuing without it", ex);
                 _connection = null;
             }
+        }
+    }
+
+    /// <summary>
+    /// Asks SQLite whether the file is sound. quick_check rather than integrity_check:
+    /// it catches a malformed image, which is what an interrupted write leaves behind,
+    /// without walking every index on a database of thousands of rows at every launch.
+    /// </summary>
+    private static bool IsIntact(SqliteConnection connection)
+    {
+        try
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "PRAGMA quick_check(1);";
+            return cmd.ExecuteScalar() as string == "ok";
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Removes the database and its write-ahead companions, which travel together.</summary>
+    private static void DeleteDatabaseFiles(string databaseFile)
+    {
+        foreach (var suffix in new[] { "", "-wal", "-shm" })
+        {
+            try { File.Delete(databaseFile + suffix); }
+            catch (Exception ex) { AppLog.Error($"Could not remove {databaseFile}{suffix}", ex); }
         }
     }
 

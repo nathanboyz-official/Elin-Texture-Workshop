@@ -71,6 +71,11 @@ public static class NavIcons
         P("M3.4,2.6 L12.6,2.6 L12.6,13.4 L3.4,13.4 Z M5.8,5.6 L10.2,5.6 "
           + "M5.8,8 L10.2,8 M5.8,10.4 L8.6,10.4");
 
+    /// <summary>Stacked cards: one saved arrangement among several.</summary>
+    public static Geometry Setups { get; } =
+        P("M2.4,5.4 L8,2.8 L13.6,5.4 L8,8 Z M2.4,8.4 L8,11 L13.6,8.4 "
+          + "M2.4,11.2 L8,13.8 L13.6,11.2");
+
     /// <summary>A magnifier over a small frame: looking something up by its picture.</summary>
     public static Geometry Identify { get; } =
         P("M2.6,2.6 L8.4,2.6 L8.4,8.4 L2.6,8.4 Z M9.9,9.9 A2.6,2.6 0 1,1 9.89,9.9 Z "
@@ -101,6 +106,7 @@ public static class NavIcons
         "LoadOrder" => LoadOrder,
         "Health" => Health,
         "Identify" => Identify,
+        "Setups" => Setups,
         "News" => News,
         "Settings" => Settings,
         _ => null,

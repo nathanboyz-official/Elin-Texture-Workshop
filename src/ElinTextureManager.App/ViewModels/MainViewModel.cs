@@ -85,6 +85,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         News = new NewsViewModel(_app);
         Health = new HealthViewModel(_app, OnDataChanged);
         Identify = new IdentifyViewModel(_app, OpenTextureDetail);
+        Setups = new SetupsViewModel(_app, OnDataChanged);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(userRequested: true), () => !IsScanning);
         NavigateCommand = new RelayCommand(p => Navigate(p as string));
@@ -108,6 +109,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public HealthViewModel Health { get; }
 
     public IdentifyViewModel Identify { get; }
+
+    public SetupsViewModel Setups { get; }
 
     /// <summary>Every nav entry, in one list, for badges and selection.</summary>
     public ObservableCollection<NavItem> NavItems { get; } = new();
@@ -265,6 +268,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Add(ManagementNav, "Health", "Mod Health",
             "Broken calls, duplicate code and load-order rot - read from the mods themselves.");
 
+        Add(SystemNav, "Setups", "Setups",
+            "Named profiles of texture choices, and setup files that move one between machines.");
         Add(SystemNav, "News", "Game News", "Elin's own Steam announcements.");
         Add(SystemNav, "Settings", "Settings", "Paths, scanning and appearance.");
     }
@@ -329,6 +334,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             case "LoadOrder":
                 LoadOrder.Apply();
                 CurrentPage = LoadOrder;
+                break;
+            case "Setups":
+                Setups.Apply();
+                CurrentPage = Setups;
                 break;
             case "Identify":
                 CurrentPage = Identify;

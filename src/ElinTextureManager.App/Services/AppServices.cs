@@ -184,12 +184,81 @@ public sealed class AppServices : IDisposable
         Settings.Save(AppPaths.SettingsFile);
     }
 
+    /// <summary>
+    /// Makes the override package on disk match a profile's selections.
+    ///
+    /// The package is cleared first rather than reconciled. Reconciling would be faster
+    /// and would also have to be right about every case - a texture in both profiles
+    /// from different mods, a texture in neither, a source mod Steam has updated since -
+    /// and being wrong leaves the game loading an image the profile does not name.
+    /// Clearing costs a second and cannot be subtly wrong.
+    /// </summary>
+    public ProfileApplyResult ApplyActiveProfile()
+    {
+        if (Overrides is null) return new ProfileApplyResult(false, 0, 0, "Elin folder is not set.");
+
+        var wanted = Selections.All().ToList();
+
+        Overrides.ClearAll();
+
+        var applied = 0;
+        var unavailable = 0;
+
+        foreach (var selection in wanted)
+        {
+            var source = FindSelectionSource(selection);
+            if (source is null) { unavailable++; continue; }
+
+            if (Overrides.Select(source).Success) applied++;
+            else unavailable++;
+        }
+
+        Selections.Save();
+        RecomputeWinners();
+
+        return new ProfileApplyResult(true, applied, unavailable, null);
+    }
+
+    /// <summary>
+    /// Finds the file a selection points at in the current library, by mod rather than
+    /// by path: Steam moves and rewrites files, and the mod that won is the choice.
+    /// </summary>
+    private TextureFile? FindSelectionSource(OverrideSelection selection)
+    {
+        if (!Scan.Index.TryGetValue(selection.TextureId, out var entry)) return null;
+
+        return entry.Versions.FirstOrDefault(v =>
+                   v.ModKey == selection.SourceModKey)
+               ?? entry.Versions.FirstOrDefault(v =>
+                   selection.SourceWorkshopId is not null
+                   && v.WorkshopId == selection.SourceWorkshopId);
+    }
+
+    /// <summary>Switches profile and rewrites the override package to match.</summary>
+    public ProfileApplyResult SwitchProfile(string profile)
+    {
+        Selections.ActiveProfile = profile;
+        Settings.ActiveProfile = profile;
+        SaveSettings();
+
+        return ApplyActiveProfile();
+    }
+
     public void Dispose()
     {
         try { Selections?.Save(); } catch { }
         try { Aliases?.Save(); } catch { }
         try { Cache.Dispose(); } catch { }
     }
+}
+
+/// <summary>Outcome of making the override package match a profile.</summary>
+public sealed record ProfileApplyResult(bool Success, int Applied, int Unavailable, string? Error)
+{
+    public string Message => Error
+        ?? (Unavailable == 0
+            ? $"{Applied} textures applied."
+            : $"{Applied} textures applied, {Unavailable} skipped - the mod they came from is not installed any more.");
 }
 
 /// <summary>Outcome of writing mod enable/disable changes to loadorder.txt.</summary>
