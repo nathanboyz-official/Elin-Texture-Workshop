@@ -104,10 +104,7 @@ public sealed class ElinPaths
         }
 
         if (elinRoot is null) return null;
-
-        var paths = new ElinPaths { ElinRoot = elinRoot, WorkshopRoot = workshop };
-        paths.WorkshopRoot ??= FindWorkshopNear(elinRoot);
-        return paths;
+        return FromElinRoot(elinRoot, workshop);
     }
 
     /// <summary>
@@ -125,17 +122,27 @@ public sealed class ElinPaths
 
             var ws = Path.Combine(steamApps.FullName, "workshop", "content",
                 SteamLocator.ElinAppId.ToString());
-            return Directory.Exists(ws) ? ws : null;
+            return Directory.Exists(ws) ? Overrides.SafePath.TrueCase(ws) : null;
         }
         catch { return null; }
     }
 
-    /// <summary>Builds a path set from a user-chosen Elin folder.</summary>
+    /// <summary>
+    /// Builds a path set from a user-chosen Elin folder.
+    ///
+    /// Both roots are resolved to their on-disk spelling. Every mod directory is built
+    /// from these, and those strings end up in loadorder.txt where Elin compares them
+    /// to find the mod - so a root remembered in the wrong case would silently produce
+    /// entries the game cannot match.
+    /// </summary>
     public static ElinPaths FromElinRoot(string elinRoot, string? workshopRoot = null)
     {
-        var paths = new ElinPaths { ElinRoot = elinRoot, WorkshopRoot = workshopRoot };
-        if (string.IsNullOrWhiteSpace(paths.WorkshopRoot) || !Directory.Exists(paths.WorkshopRoot))
-            paths.WorkshopRoot = FindWorkshopNear(elinRoot);
+        var paths = new ElinPaths { ElinRoot = Overrides.SafePath.TrueCase(elinRoot) };
+
+        paths.WorkshopRoot = !string.IsNullOrWhiteSpace(workshopRoot) && Directory.Exists(workshopRoot)
+            ? Overrides.SafePath.TrueCase(workshopRoot)
+            : FindWorkshopNear(paths.ElinRoot);
+
         return paths;
     }
 }

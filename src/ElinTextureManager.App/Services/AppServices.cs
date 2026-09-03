@@ -60,6 +60,19 @@ public sealed class AppServices : IDisposable
         {
             Paths = ElinPaths.FromElinRoot(Settings.ElinPath, Settings.WorkshopPath);
             AppLog.Info($"Using saved Elin path: {Paths.ElinRoot}");
+
+            // A path remembered from an older build can carry the wrong letter case.
+            // Every mod directory is derived from these and ends up in loadorder.txt,
+            // where the game matches on the string, so write the resolved spelling back
+            // rather than re-deriving it correctly but remembering it wrongly.
+            if (!string.Equals(Settings.ElinPath, Paths.ElinRoot, StringComparison.Ordinal)
+                || !string.Equals(Settings.WorkshopPath, Paths.WorkshopRoot, StringComparison.Ordinal))
+            {
+                AppLog.Info($"Corrected stored paths to their on-disk spelling: {Paths.ElinRoot}");
+                Settings.ElinPath = Paths.ElinRoot;
+                Settings.WorkshopPath = Paths.WorkshopRoot;
+                SaveSettings();
+            }
         }
         else
         {

@@ -234,9 +234,19 @@ public sealed class LoadOrderViewModel : ObservableObject
 
         if (answer != MessageBoxResult.OK) return;
 
-        // Rebuild the document in the order shown, preserving unparsed lines.
+        // Rebuild the document in the order shown, preserving unparsed lines. Anything
+        // added to the document since this page was built - the Mods page appends an
+        // entry when you switch off a mod the game has never seen - is kept rather than
+        // dropped, which is what rebuilding purely from the visible rows would do.
+        var shown = Items.Select(r => r.Entry).ToList();
+        var missing = _app.LoadOrder.Entries.Where(e => !shown.Contains(e)).ToList();
+
+        if (missing.Count > 0)
+            Core.Logging.AppLog.Info($"Keeping {missing.Count} load-order entries added since this page was opened.");
+
         _app.LoadOrder.Entries.Clear();
-        foreach (var row in Items) _app.LoadOrder.Entries.Add(row.Entry);
+        foreach (var row in shown) _app.LoadOrder.Entries.Add(row);
+        foreach (var extra in missing) _app.LoadOrder.Entries.Add(extra);
 
         var saved = LoadOrderFile.Save(_app.LoadOrder, AppPaths.BackupDirectory, out var backup);
 

@@ -155,6 +155,23 @@ public static class LoadOrderFile
                 }
             }
 
+            // Repair any entry whose path differs from the on-disk spelling only by
+            // case. Elin compares these strings to find the mod, and a line it cannot
+            // match is a line it ignores - so a mod disabled here would quietly stay
+            // switched on in the game. Windows opens either spelling, which is exactly
+            // why the mismatch is invisible until you are standing in front of the NPC
+            // you thought you had removed. Unparsed lines are never touched.
+            foreach (var e in doc.Entries)
+            {
+                if (!e.IsParsed) continue;
+
+                var onDisk = SafePath.TrueCase(e.Path);
+                if (string.Equals(onDisk, e.Path, StringComparison.Ordinal)) continue;
+
+                AppLog.Info($"Rewriting load-order path to its on-disk spelling: {e.Path} -> {onDisk}");
+                e.Path = onDisk;
+            }
+
             var text = new StringBuilder();
             foreach (var e in doc.Entries) text.Append(e.Serialize()).Append("\r\n");
 
@@ -209,7 +226,7 @@ public static class LoadOrderFile
         if (enabled) return false;
 
         string full;
-        try { full = System.IO.Path.GetFullPath(modDirectory); }
+        try { full = SafePath.TrueCase(modDirectory); }
         catch (Exception ex)
         {
             AppLog.Warn($"Cannot add a load-order entry for '{modDirectory}': {ex.Message}");

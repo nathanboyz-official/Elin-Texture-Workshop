@@ -16,6 +16,52 @@ public sealed record SafetyVerdict(bool Allowed, string Reason)
 /// </summary>
 public static class SafePath
 {
+    /// <summary>
+    /// The path exactly as Windows stores it on disk, letter case included.
+    ///
+    /// This matters because loadorder.txt is read back by Elin, and a line the game
+    /// cannot match is a line it ignores. Windows itself is case-insensitive, so a
+    /// path that merely differs in case still opens and still scans - which is why a
+    /// mismatch here is invisible everywhere except in the game's own behaviour.
+    /// Writing the same form the game writes removes the question entirely.
+    ///
+    /// Never throws: anything unresolvable comes back as it went in.
+    /// </summary>
+    public static string TrueCase(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return path ?? string.Empty;
+
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var root = Path.GetPathRoot(full);
+            if (string.IsNullOrEmpty(root)) return full;
+
+            // Windows writes the drive letter upper case; match it.
+            var result = root.ToUpperInvariant();
+
+            var segments = full[root.Length..]
+                .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Where(s => s.Length > 0);
+
+            foreach (var segment in segments)
+            {
+                string[] hits;
+                try { hits = Directory.GetFileSystemEntries(result, segment); }
+                catch { return full; }
+
+                // Not on disk (yet): keep the caller's spelling for the remainder.
+                result = hits.Length == 1 ? hits[0] : Path.Combine(result, segment);
+            }
+
+            return result;
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
     /// <summary>Normalises a path for comparison: absolute, no trailing separator.</summary>
     public static string? Normalize(string? path)
     {

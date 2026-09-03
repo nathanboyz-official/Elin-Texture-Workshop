@@ -460,6 +460,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (CurrentPage is TextureBrowserViewModel b) b.Apply(preserveScroll: true);
         else if (CurrentPage is OverridesViewModel o) o.Apply();
         else if (CurrentPage is ModsViewModel m) m.Apply(preserveScroll: true);
+        else if (CurrentPage is LoadOrderViewModel l) l.Apply();
+
+        // The Mods page and the Load Order page are two views of the same file, so a
+        // change on one has to be reflected on the other. Rebuilding it here rather
+        // than only on navigation keeps them from ever showing different answers -
+        // unless it is holding unsaved edits, which are the user's and not ours to
+        // discard.
+        if (CurrentPage is not LoadOrderViewModel && !LoadOrder.IsDirty) LoadOrder.Apply();
 
         if (_app.Selections.Count > 0 && ElinRunning) RestartNeeded = true;
     }
