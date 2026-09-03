@@ -249,7 +249,9 @@ public sealed class ModsViewModel : ObservableObject
             ShellService.OpenFolder((p as ModRowViewModel)?.Directory));
 
         OpenWorkshopPageCommand = new RelayCommand(p =>
-            ShellService.OpenWorkshopPage((p as ModRowViewModel)?.WorkshopId));
+            ShellService.OpenWorkshopPage(
+                (p as ModRowViewModel)?.WorkshopId,
+                _app.Settings.OpenWorkshopInSteamApp));
 
         ToggleDescriptionCommand = new RelayCommand(p =>
         {

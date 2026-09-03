@@ -32,23 +32,65 @@ public static class ShellService
     }
 
     /// <summary>
-    /// Opens a Workshop item's page in whatever the user has set as their browser.
-    /// Only ever called for an ID read from a Workshop folder name, and the URL is built
-    /// here rather than taken from anywhere, so nothing arbitrary can be launched.
+    /// Opens a Workshop item's page, preferring the Steam desktop client.
+    ///
+    /// This needs no account, no sign-in and no API key. "steam://" is a protocol
+    /// handler Steam registers on this machine when it is installed; handing it a
+    /// link is a purely local hand-off, exactly like double-clicking a .txt file
+    /// opens Notepad. The application never authenticates with Valve, never reads
+    /// anything about the Steam account, and sends nothing anywhere.
+    ///
+    /// Falls back to the browser when Steam is not installed, so the button still works.
     /// </summary>
-    public static void OpenWorkshopPage(string? workshopId)
+    public static void OpenWorkshopPage(string? workshopId, bool preferSteamClient = true)
     {
-        if (string.IsNullOrWhiteSpace(workshopId)) return;
+        var target = WorkshopLink(workshopId, preferSteamClient && IsSteamClientInstalled());
+        if (target is null) return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Could not open {target}: {ex.Message}");
+
+            // Steam may be registered but broken. The web page is always reachable.
+            var web = WorkshopLink(workshopId, useSteamClient: false);
+            if (web is not null && !string.Equals(web, target, StringComparison.Ordinal))
+                OpenUrl(web);
+        }
+    }
+
+    /// <summary>
+    /// Builds the link for a Workshop item, or null when the ID is not one.
+    ///
+    /// The ID comes from a Workshop folder name, which is untrusted input, so it has to
+    /// be all digits before it is put in a URL - that is what stops anything arbitrary
+    /// being handed to the shell.
+    /// </summary>
+    public static string? WorkshopLink(string? workshopId, bool useSteamClient)
+    {
+        if (string.IsNullOrWhiteSpace(workshopId)) return null;
 
         foreach (var c in workshopId)
         {
             if (c is >= '0' and <= '9') continue;
             AppLog.Warn($"Refusing to open a Workshop page for a non-numeric ID: {workshopId}");
-            return;
+            return null;
         }
 
-        OpenUrl($"https://steamcommunity.com/sharedfiles/filedetails/?id={workshopId}");
+        return useSteamClient
+            ? $"steam://url/CommunityFilePage/{workshopId}"
+            : $"https://steamcommunity.com/sharedfiles/filedetails/?id={workshopId}";
     }
+
+    /// <summary>
+    /// Whether the Steam desktop client is installed, read from the same registry entry
+    /// the application already uses to find the game. Nothing is launched to find out.
+    /// </summary>
+    public static bool IsSteamClientInstalled() =>
+        Detection.SteamLocator.FindSteamRoot() is not null;
 
     /// <summary>Opens an https URL in the default browser. Anything else is refused.</summary>
     public static void OpenUrl(string? url)

@@ -291,7 +291,7 @@
                                                 <Button Content="Workshop" Style="{StaticResource SubtleButton}"
                                                         Visibility="{Binding WorkshopId,
                                                                     Converter={StaticResource NotNullToVis}}"
-                                                        ToolTip="Open this mod's Steam Workshop page in your browser"
+                                                        ToolTip="Open this mod's Workshop page in the Steam app. No sign-in - the link is handed to Steam on this PC and nothing is sent anywhere."
                                                         Command="{Binding DataContext.OpenWorkshopPageCommand,
                                                                   RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}" />

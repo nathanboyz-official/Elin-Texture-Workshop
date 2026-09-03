@@ -91,7 +91,8 @@ Or, when the problem is a whole mod rather than one texture:
 - A switch per mod turns the whole thing off. Changes are batched, confirmed, and
   written to `loadorder.txt` behind a mandatory backup
 - Each mod's own package ID, author, update date, tags and description are on the row
-- Click a mod to browse only its textures; a button opens its Workshop page
+- Click a mod to browse only its textures; a button opens its Workshop page straight in
+  the Steam app, with no sign-in of any kind
 
 **Load order and conflicts**
 - Every detected mod with image count, conflict count, unique count and load position
@@ -147,10 +148,27 @@ No API key, no account, no identifiers — the app ID and a count, nothing else.
 in Settings and the page shows whatever the last successful fetch cached. Everything else
 in the application works entirely from files on your disk.
 
-The only other outbound action is opening a link in your browser, which happens only when
-you click **Workshop** on a mod row or **Open on Steam** on an announcement. Workshop URLs
-are built from a Workshop folder name that has been checked to be all digits, and only
-`https` links are ever launched.
+### Opening Workshop pages in Steam
+
+**Workshop** on a mod row opens that mod's page in the Steam desktop client:
+
+```
+steam://url/CommunityFilePage/3427045108
+```
+
+There is **no Steam login, no API key and no account access anywhere in this
+application**, and none is needed for this. `steam://` is a link type Steam registers on
+your PC when you install it, so pressing the button hands the link to the program already
+running on your machine — the same way double-clicking a text file opens your editor.
+Nothing is sent anywhere, nothing about your Steam account is read, and nothing is
+collected.
+
+If Steam is not installed the button falls back to `steamcommunity.com` in your browser,
+and the option can be turned off in Settings to always use the browser.
+
+The Workshop ID is read from a Workshop folder name, which is untrusted input, so it is
+checked to be all digits before it goes anywhere near the shell. Any other outbound action
+is a plain `https` link opened in your browser, and nothing but `https` is ever launched.
 
 Nothing is written inside your Steam Workshop folders.
 

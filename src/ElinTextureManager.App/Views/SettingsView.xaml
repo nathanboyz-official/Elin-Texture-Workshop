@@ -129,6 +129,29 @@
                 </StackPanel>
             </Border>
 
+            <!-- ============ STEAM ============ -->
+            <TextBlock Text="STEAM" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <CheckBox Content="Open Workshop links in the Steam app instead of a browser"
+                              IsChecked="{Binding OpenWorkshopInSteamApp}"
+                              IsEnabled="{Binding SteamClientInstalled}" />
+
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Text="This does not sign you in to anything. There is no Steam login, no API key and no account access anywhere in this application, and none is needed: steam:// is a link type Steam registers on this PC when you install it, so pressing Workshop just hands the link to the program already running on your machine - the same way double-clicking a text file opens your editor. Nothing is sent anywhere, nothing about your Steam account is read, and nothing is collected." />
+
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Text="Steam was not found on this PC, so Workshop links open in your browser."
+                               Visibility="{Binding SteamClientInstalled,
+                                           Converter={StaticResource InverseBoolToVis}}" />
+                </StackPanel>
+            </Border>
+
             <!-- ============ NETWORK ============ -->
             <TextBlock Text="GAME NEWS" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
 

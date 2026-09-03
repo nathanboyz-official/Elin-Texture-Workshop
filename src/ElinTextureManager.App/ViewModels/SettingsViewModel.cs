@@ -75,6 +75,19 @@ public sealed class SettingsViewModel : ObservableObject
         set { _app.Settings.EnableSteamNews = value; Persist(); OnPropertyChanged(); }
     }
 
+    /// <summary>
+    /// Hand Workshop links to the Steam client rather than a browser. Local, and needs
+    /// no sign-in - see the note beside it in the view.
+    /// </summary>
+    public bool OpenWorkshopInSteamApp
+    {
+        get => _app.Settings.OpenWorkshopInSteamApp;
+        set { _app.Settings.OpenWorkshopInSteamApp = value; Persist(); OnPropertyChanged(); }
+    }
+
+    /// <summary>False when Steam is not installed, in which case the option cannot apply.</summary>
+    public bool SteamClientInstalled => ShellService.IsSteamClientInstalled();
+
     public bool WatchFileChanges
     {
         get => _app.Settings.WatchFileChanges;

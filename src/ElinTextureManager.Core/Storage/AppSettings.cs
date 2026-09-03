@@ -53,6 +53,13 @@ public sealed class AppSettings
     /// </summary>
     public bool EnableSteamNews { get; set; } = true;
 
+    /// <summary>
+    /// Open Workshop links in the Steam desktop client rather than a browser. This is a
+    /// local protocol hand-off and needs no account or sign-in; off sends them to the
+    /// browser instead. Ignored when Steam is not installed.
+    /// </summary>
+    public bool OpenWorkshopInSteamApp { get; set; } = true;
+
     public string ActiveProfile { get; set; } = "Default";
 
     public static AppSettings Load(string path)
