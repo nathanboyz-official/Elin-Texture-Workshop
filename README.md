@@ -1,4 +1,18 @@
-# Elin Texture Manager
+<div align="center">
+
+<img src="assets/icon.png" alt="" width="132">
+
+# Elin Texture Workshop
+
+**A companion app for managing texture replacement mods for [Elin](https://store.steampowered.com/app/2135150/Elin/).**
+
+### [⭳ Download for Windows](../../releases/latest)
+
+No installer · no account · nothing to configure
+
+</div>
+
+---
 
 A Windows desktop application for managing texture replacement mods for the Steam game
 **Elin**. It scans your installed Workshop mods, shows every replacement texture and
@@ -120,8 +134,29 @@ Or, when the problem is a whole mod rather than one texture:
 
 ## Installation
 
-Download or build `ElinTextureManager.exe` and run it. There is no installer, no account
-and no browser component.
+1. **[Download the latest release](../../releases/latest)** — the
+   `ElinTextureWorkshop-…-win-x64.zip` file.
+2. Right-click the zip → **Properties** → tick **Unblock** → **OK**. Windows marks
+   anything downloaded from the internet, and unblocking here saves unblocking every file
+   inside it.
+3. Extract the folder anywhere you like.
+4. Run **ElinTextureManager.exe**.
+
+That is the whole installation. There is no installer, no account, no browser component,
+and nothing to configure — the application finds Elin and your Workshop mods by itself on
+first launch.
+
+You do **not** need .NET installed. The zip is self-contained, which is why it is around
+60 MB.
+
+### "Windows protected your PC"
+
+The first launch shows a blue SmartScreen box. Click **More info**, then **Run anyway**.
+
+This happens because the build is not code-signed, not because anything is wrong with it.
+A signing certificate costs a few hundred pounds a year, which is hard to justify for a
+free modding tool. If you would rather not trust a binary from the internet — a reasonable
+position — [build it yourself](#building-from-source); it takes one command.
 
 Application data lives in `%APPDATA%\ElinTextureManager`:
 
@@ -464,6 +499,32 @@ dotnet publish src/ElinTextureManager.App -c Release -r win-x64 --self-contained
 The result is `publish/win-x64/ElinTextureManager.exe`. Single-file publishing is
 deliberately not used — it causes problems with WPF dependencies, and stability matters
 more here than a tidy folder.
+
+### Cutting a release
+
+Tag a version and push it; the workflow in `.github/workflows/release.yml` runs the
+tests, publishes a self-contained build, zips it and attaches it to a GitHub Release.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+To build the same zip locally without tagging anything:
+
+```bash
+pwsh scripts/package-release.ps1 -Version v1.0.0
+```
+
+### The application icon
+
+`assets/icon.png` is the source. `assets/ElinTextureWorkshop.ico` is generated from it and
+holds seven sizes: 16, 24, 32, 48 and 64 as 32-bit DIBs, then 128 and 256 as PNG.
+
+The split matters. PNG-compressed entries have been valid since Vista and Explorer renders
+them, but GDI+ decodes them as noise — so an icon built entirely from PNG entries looks
+right in a file listing and turns to static wherever the older API is used. Small sizes
+are therefore written as DIBs.
 
 ### Project layout
 

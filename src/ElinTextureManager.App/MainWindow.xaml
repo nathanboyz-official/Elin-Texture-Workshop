@@ -4,6 +4,7 @@
         xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
         xmlns:views="clr-namespace:ElinTextureManager.App.Views"
         Title="Elin Texture Workshop"
+        Icon="AppIcon.ico"
         Height="900" Width="1440"
         MinHeight="620" MinWidth="1040"
         WindowStartupLocation="CenterScreen"

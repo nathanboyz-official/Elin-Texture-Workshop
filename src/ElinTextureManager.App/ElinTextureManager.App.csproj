@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>ElinTextureManager</AssemblyName>
     <RootNamespace>ElinTextureManager.App</RootNamespace>
-    <ApplicationIcon></ApplicationIcon>
+    <ApplicationIcon>..\..\assets\ElinTextureWorkshop.ico</ApplicationIcon>
     <!-- Allow framework-dependent builds to run on a newer installed runtime -->
     <RollForward>LatestMajor</RollForward>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -16,6 +16,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ElinTextureManager.Core\ElinTextureManager.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Also embedded as a resource so the window and taskbar can use the crisp
+         per-size images rather than a scaled copy of the executable's icon. -->
+    <Resource Include="..\..\assets\ElinTextureWorkshop.ico" Link="AppIcon.ico" />
   </ItemGroup>
 
 </Project>
