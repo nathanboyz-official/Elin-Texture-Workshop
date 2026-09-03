@@ -241,4 +241,115 @@ public sealed class HealthTests
         Assert.True(patchFindings.Count <= 1);
         Assert.All(patchFindings, f => Assert.Equal(HealthSeverity.Notice, f.Severity));
     }
+
+    /// <summary>
+    /// Every dependency line the report produced.
+    ///
+    /// The tests assert on the one reference they planted rather than on there being no
+    /// findings at all, because the stand-in mod is this test assembly and it also
+    /// references xunit - which is noise from the harness, not the product.
+    /// </summary>
+    private static string DependencyEvidence(HealthReport report) =>
+        string.Join("\n", report.Findings
+            .Where(f => f.Check == HealthScanner.DependencyCheck)
+            .SelectMany(f => f.Evidence));
+
+    /// <summary>Puts an assembly where the game keeps its own, so it counts as stock.</summary>
+    private static void PlantGameAssembly(TestWorkspace ws, string fileName)
+    {
+        var managed = Path.Combine(ws.ElinRoot, "Elin_Data", "Managed");
+        Directory.CreateDirectory(managed);
+        File.Copy(RealAssembly, Path.Combine(managed, fileName), overwrite: true);
+    }
+
+    [Fact]
+    public void A_mod_built_against_another_mod_that_is_installed_is_not_reported()
+    {
+        using var ws = new TestWorkspace();
+        ws.AddWorkshopMod("100", "Framework", new[] { ("chara_x.png", "a") });
+        ws.AddWorkshopMod("200", "Dependent", new[] { ("chara_y.png", "b") });
+
+        // The dependent mod is this test assembly, which really does reference Core; the
+        // framework mod ships Core. That is a satisfied dependency, in real metadata.
+        File.Copy(SecondRealAssembly,
+            Path.Combine(ws.WorkshopRoot, "100", Path.GetFileName(SecondRealAssembly)));
+        PlantAssembly(ws, "200", "Dependent.dll");
+        ws.WriteLoadOrder(
+            (Path.Combine(ws.WorkshopRoot, "100"), true),
+            (Path.Combine(ws.WorkshopRoot, "200"), true));
+
+        Assert.DoesNotContain("ElinTextureManager.Core", DependencyEvidence(Run(ws)));
+    }
+
+    [Fact]
+    public void A_mod_whose_dependency_is_nowhere_is_broken()
+    {
+        using var ws = new TestWorkspace();
+        ws.AddWorkshopMod("200", "Dependent", new[] { ("chara_y.png", "b") });
+        PlantAssembly(ws, "200", "Dependent.dll");
+        ws.WriteLoadOrder((Path.Combine(ws.WorkshopRoot, "200"), true));
+
+        var report = Run(ws);
+        var finding = Assert.Single(report.Findings,
+            f => f.Check == HealthScanner.DependencyCheck && f.Title.Contains("not installed"));
+
+        Assert.Equal(HealthSeverity.Broken, finding.Severity);
+        Assert.Contains("ElinTextureManager.Core", DependencyEvidence(report));
+    }
+
+    [Fact]
+    public void Assemblies_the_game_itself_ships_are_not_missing_dependencies()
+    {
+        using var ws = new TestWorkspace();
+        ws.AddWorkshopMod("200", "Dependent", new[] { ("chara_y.png", "b") });
+        PlantAssembly(ws, "200", "Dependent.dll");
+        ws.WriteLoadOrder((Path.Combine(ws.WorkshopRoot, "200"), true));
+
+        // Every mod is built against a stack the game provides. Reading only mod folders
+        // reported 44 broken mods on a real library instead of 6.
+        PlantGameAssembly(ws, Path.GetFileName(SecondRealAssembly));
+
+        Assert.DoesNotContain("ElinTextureManager.Core", DependencyEvidence(Run(ws)));
+    }
+
+    [Fact]
+    public void Turning_off_a_mod_that_another_one_needs_is_reported()
+    {
+        using var ws = new TestWorkspace();
+        ws.AddWorkshopMod("100", "Framework", new[] { ("chara_x.png", "a") });
+        ws.AddWorkshopMod("200", "Dependent", new[] { ("chara_y.png", "b") });
+        File.Copy(SecondRealAssembly,
+            Path.Combine(ws.WorkshopRoot, "100", Path.GetFileName(SecondRealAssembly)));
+        PlantAssembly(ws, "200", "Dependent.dll");
+
+        // Switching one thing off can break something you did not touch, which is the
+        // whole reason to say so here rather than let the game fail silently.
+        ws.WriteLoadOrder(
+            (Path.Combine(ws.WorkshopRoot, "100"), false),
+            (Path.Combine(ws.WorkshopRoot, "200"), true));
+
+        var finding = Assert.Single(Run(ws).Findings,
+            f => f.Check == HealthScanner.DependencyCheck && f.Title.Contains("turned off"));
+
+        Assert.Equal(HealthSeverity.Broken, finding.Severity);
+        Assert.Contains("Framework", string.Join("\n", finding.Evidence));
+    }
+
+    [Fact]
+    public void A_mod_that_is_itself_off_is_not_warned_about_its_dependencies()
+    {
+        using var ws = new TestWorkspace();
+        ws.AddWorkshopMod("100", "Framework", new[] { ("chara_x.png", "a") });
+        ws.AddWorkshopMod("200", "Dependent", new[] { ("chara_y.png", "b") });
+        File.Copy(SecondRealAssembly,
+            Path.Combine(ws.WorkshopRoot, "100", Path.GetFileName(SecondRealAssembly)));
+        PlantAssembly(ws, "200", "Dependent.dll");
+
+        // Both off. Nothing is going to run, so nothing is going to break.
+        ws.WriteLoadOrder(
+            (Path.Combine(ws.WorkshopRoot, "100"), false),
+            (Path.Combine(ws.WorkshopRoot, "200"), false));
+
+        Assert.DoesNotContain(Run(ws).Findings, f => f.Title.Contains("turned off"));
+    }
 }

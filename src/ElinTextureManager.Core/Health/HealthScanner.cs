@@ -20,6 +20,7 @@ public sealed class HealthScanner
     public const string PatchCheck = "Patch conflict";
     public const string LoadOrderCheck = "Load order";
     public const string VersionCheck = "Version drift";
+    public const string DependencyCheck = "Missing dependency";
 
     public HealthReport Scan(ElinPaths paths, ScanResult scan, LoadOrderDocument loadOrder)
     {
@@ -38,6 +39,7 @@ public sealed class HealthScanner
         CheckPatchConflicts(codeMods, report);
         CheckLoadOrder(paths, scan, loadOrder, report);
         CheckVersions(paths, codeMods, report);
+        CheckDependencies(paths, codeMods, report);
 
         report.Findings.Sort((a, b) => a.Severity != b.Severity
             ? a.Severity.CompareTo(b.Severity)
@@ -303,7 +305,108 @@ public sealed class HealthScanner
         }
     }
 
-    // ---- 5. is a mod built for a much older Elin? ----
+    // ---- 5. does every mod's dependency exist and is it switched on? ----
+
+    private static void CheckDependencies(ElinPaths paths,
+        List<(ModPackage Mod, List<string> Dlls)> codeMods, HealthReport report)
+    {
+        // Everything the game itself ships. Without this the check is nonsense: mods are
+        // built against Plugins.BaseCore, Reflex and a hundred others that live in the
+        // game's own Managed folder, and reading only mod folders reports every one of
+        // them as a mod you failed to install.
+        var stock = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var managed = Path.GetDirectoryName(paths.GameAssembly);
+            if (managed is not null && Directory.Exists(managed))
+                foreach (var dll in Directory.GetFiles(managed, "*.dll"))
+                    stock.Add(Path.GetFileNameWithoutExtension(dll));
+        }
+        catch { }
+
+        // Who provides what. A mod's assembly file name is what other mods reference it
+        // by, so this is the whole dependency graph Elin has - package.xml has no
+        // dependency element at all, which is why the answer has to come from the code.
+        var providers = new Dictionary<string, ModPackage>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (mod, dlls) in codeMods)
+        foreach (var dll in dlls)
+            providers.TryAdd(Path.GetFileNameWithoutExtension(dll), mod);
+
+        foreach (var (mod, dlls) in codeMods)
+        {
+            var missing = new List<string>();
+            var switchedOff = new List<(string Assembly, ModPackage Provider)>();
+
+            foreach (var dll in dlls)
+            {
+                var own = Path.GetFileNameWithoutExtension(dll);
+
+                foreach (var reference in AssemblyIndex.AssemblyRefs(dll))
+                {
+                    if (AssemblyIndex.IsAmbientAssembly(reference)) continue;
+                    if (stock.Contains(reference)) continue;
+                    if (string.Equals(reference, own, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    // A mod's own other assemblies are not a dependency on anyone else.
+                    if (dlls.Any(d => string.Equals(
+                            Path.GetFileNameWithoutExtension(d), reference,
+                            StringComparison.OrdinalIgnoreCase))) continue;
+
+                    if (!providers.TryGetValue(reference, out var provider))
+                    {
+                        if (!missing.Contains(reference)) missing.Add(reference);
+                    }
+                    else if (!provider.Enabled && provider.Key != mod.Key
+                             && !switchedOff.Any(s => s.Provider.Key == provider.Key))
+                    {
+                        switchedOff.Add((reference, provider));
+                    }
+                }
+            }
+
+            if (missing.Count > 0)
+            {
+                var finding = new HealthFinding
+                {
+                    Severity = HealthSeverity.Broken,
+                    Check = DependencyCheck,
+                    Title = $"{mod.Name} needs a mod that is not installed",
+                    Detail = "It is built against another mod's code. Without it the game "
+                             + "cannot load this one's types, which surfaces as "
+                             + "\"Failure has occurred while loading a type\" - naming "
+                             + "neither mod.",
+                    Suggestion = "Subscribe to the mod that provides it, or disable this one.",
+                };
+                finding.ModKeys.Add(mod.Key);
+                finding.ModNames.Add(mod.Name);
+                foreach (var m in missing.Take(6)) finding.Evidence.Add($"needs {m}.dll");
+                report.Findings.Add(finding);
+            }
+
+            if (switchedOff.Count == 0 || !mod.Enabled) continue;
+
+            var off = new HealthFinding
+            {
+                Severity = HealthSeverity.Broken,
+                Check = DependencyCheck,
+                Title = $"{mod.Name} needs a mod you have turned off",
+                Detail = "The mod it is built against is installed but switched off in the "
+                         + "load order, so its code will not be there when this one asks "
+                         + "for it. Turning something off can break a mod you did not touch.",
+                Suggestion = "Turn the other mod back on, or turn this one off as well.",
+            };
+
+            off.ModKeys.Add(mod.Key);
+            off.ModNames.Add(mod.Name);
+            foreach (var (assembly, provider) in switchedOff.Take(6))
+                off.Evidence.Add($"needs {assembly}.dll, from {provider.Name} (off)");
+
+            report.Findings.Add(off);
+        }
+    }
+
+    // ---- 6. is a mod built for a much older Elin? ----
 
     private static void CheckVersions(ElinPaths paths,
         List<(ModPackage Mod, List<string> Dlls)> codeMods, HealthReport report)

@@ -79,6 +79,48 @@ public static class AssemblyIndex
     /// the declarative attribute form is read - patches registered in code at runtime
     /// cannot be seen without running the mod, which this deliberately never does.
     /// </summary>
+    /// <summary>
+    /// The simple names of the assemblies this one is compiled against.
+    ///
+    /// Elin's own package.xml has no dependency element, so this is the only honest
+    /// answer to "what does this mod need". A mod built against Custom Whatever Loader
+    /// carries a reference to it whether or not anyone wrote that down.
+    /// </summary>
+    public static IReadOnlyCollection<string> AssemblyRefs(string path)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        Read(path, md =>
+        {
+            foreach (var handle in md.AssemblyReferences)
+            {
+                try
+                {
+                    var name = md.GetString(md.GetAssemblyReference(handle).Name);
+                    if (!string.IsNullOrWhiteSpace(name)) names.Add(name);
+                }
+                catch { }
+            }
+        });
+
+        return names;
+    }
+
+    /// <summary>
+    /// Assembly names that are always there and are never a mod's dependency: the
+    /// runtime, Unity, and the loader stack every mod is built on.
+    /// </summary>
+    public static bool IsAmbientAssembly(string name) =>
+        name.StartsWith("System", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("Unity", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("Mono.", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("BepInEx", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("Newtonsoft", StringComparison.OrdinalIgnoreCase)
+        || name is "mscorlib" or "netstandard" or "Elin" or "Assembly-CSharp"
+                or "0Harmony" or "HarmonyLib" or "MonoMod" or "UnityEngine"
+                or "PackageLoader" or "Steamworks.NET" or "com.rlabrecque.steamworks.net";
+
     public static IReadOnlyCollection<string> PatchTargets(string path)
     {
         var found = new HashSet<string>(StringComparer.Ordinal);
