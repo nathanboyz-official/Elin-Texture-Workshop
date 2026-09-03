@@ -140,7 +140,7 @@ Or, when the problem is a whole mod rather than one texture:
    anything downloaded from the internet, and unblocking here saves unblocking every file
    inside it.
 3. Extract the folder anywhere you like.
-4. Run **ElinTextureManager.exe**.
+4. Run **ElinTextureWorkshop.exe**.
 
 That is the whole installation. There is no installer, no account, no browser component,
 and nothing to configure — the application finds Elin and your Workshop mods by itself on
@@ -496,7 +496,7 @@ Produce a self-contained build that runs without .NET installed:
 dotnet publish src/ElinTextureManager.App -c Release -r win-x64 --self-contained true -o publish/win-x64
 ```
 
-The result is `publish/win-x64/ElinTextureManager.exe`. Single-file publishing is
+The result is `publish/win-x64/ElinTextureWorkshop.exe`. Single-file publishing is
 deliberately not used — it causes problems with WPF dependencies, and stability matters
 more here than a tidy folder.
 

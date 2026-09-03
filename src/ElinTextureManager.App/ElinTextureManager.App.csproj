@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyName>ElinTextureManager</AssemblyName>
+    <AssemblyName>ElinTextureWorkshop</AssemblyName>
     <RootNamespace>ElinTextureManager.App</RootNamespace>
     <ApplicationIcon>..\..\assets\ElinTextureWorkshop.ico</ApplicationIcon>
     <!-- Allow framework-dependent builds to run on a newer installed runtime -->

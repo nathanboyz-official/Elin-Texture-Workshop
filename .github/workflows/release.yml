@@ -57,7 +57,7 @@ jobs:
 
             1. Download **${{ env.ASSET }}** below.
             2. Right-click the zip, choose **Properties**, tick **Unblock**, then extract it.
-            3. Run **ElinTextureManager.exe**.
+            3. Run **ElinTextureWorkshop.exe**.
 
             No installer and no .NET needed - everything is inside the zip.
 

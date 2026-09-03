@@ -9,7 +9,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 # The app locks its own executable while running.
-Get-Process ElinTextureManager -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process ElinTextureWorkshop -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 1
 
 Write-Host "Testing..."

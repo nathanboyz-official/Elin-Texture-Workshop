@@ -143,6 +143,11 @@ public sealed class ElinPaths
 /// <summary>Local application folders: settings, cache, logs and backups.</summary>
 public static class AppPaths
 {
+    /// <summary>
+    /// Deliberately still "ElinTextureManager" even though the application is now called
+    /// Elin Texture Workshop. This folder holds the user's texture choices, aliases and
+    /// settings; renaming it would orphan all of them on the next launch for no gain.
+    /// </summary>
     public static string Root { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "ElinTextureManager");
