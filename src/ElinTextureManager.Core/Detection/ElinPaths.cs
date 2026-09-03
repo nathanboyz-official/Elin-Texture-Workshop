@@ -175,6 +175,9 @@ public static class AppPaths
 
     /// <summary>An in-progress bisect, so a crash mid-search can still be undone.</summary>
     public static string BisectFile => Path.Combine(Root, "bisect.json");
+
+    /// <summary>Last answer from Steam about the installed Workshop items.</summary>
+    public static string WorkshopCacheFile => Path.Combine(Root, "workshop.json");
     public static string LogDirectory => Path.Combine(Root, "Logs");
     public static string BackupDirectory => Path.Combine(Root, "Backups");
     public static string ThumbnailCache => Path.Combine(Root, "Thumbnails");

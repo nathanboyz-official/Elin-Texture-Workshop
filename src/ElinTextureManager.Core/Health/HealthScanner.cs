@@ -1,3 +1,4 @@
+using ElinTextureManager.Core.Workshop;
 using ElinTextureManager.Core.Detection;
 using ElinTextureManager.Core.LoadOrder;
 using ElinTextureManager.Core.Logging;
@@ -22,9 +23,20 @@ public sealed class HealthScanner
     public const string VersionCheck = "Version drift";
     public const string DependencyCheck = "Missing dependency";
 
-    public HealthReport Scan(ElinPaths paths, ScanResult scan, LoadOrderDocument loadOrder)
+    private IReadOnlyDictionary<string, WorkshopItem>? _workshop;
+
+    public const string WorkshopCheck = "Workshop";
+
+    /// <summary>
+    /// Runs every check. <paramref name="workshop"/> is what Steam last said about the
+    /// installed items, or null when the user has not turned that on - the checks that
+    /// need it are simply skipped rather than guessing.
+    /// </summary>
+    public HealthReport Scan(ElinPaths paths, ScanResult scan, LoadOrderDocument loadOrder,
+        IReadOnlyDictionary<string, WorkshopItem>? workshop = null)
     {
         var report = new HealthReport();
+        _workshop = workshop;
 
         var codeMods = scan.Mods
             .Where(m => m.SourceType != TextureSourceType.Vanilla)
@@ -40,6 +52,7 @@ public sealed class HealthScanner
         CheckLoadOrder(paths, scan, loadOrder, report);
         CheckVersions(paths, codeMods, report);
         CheckDependencies(paths, codeMods, report);
+        CheckWorkshop(scan, report);
 
         report.Findings.Sort((a, b) => a.Severity != b.Severity
             ? a.Severity.CompareTo(b.Severity)
@@ -231,7 +244,7 @@ public sealed class HealthScanner
 
     // ---- 4. is loadorder.txt in a state the game can act on? ----
 
-    private static void CheckLoadOrder(ElinPaths paths, ScanResult scan,
+    private void CheckLoadOrder(ElinPaths paths, ScanResult scan,
         LoadOrderDocument doc, HealthReport report)
     {
         if (!File.Exists(paths.LoadOrderFile))
@@ -285,7 +298,22 @@ public sealed class HealthScanner
                 Detail = "These are mods you have unsubscribed from. They are harmless - "
                          + "the game skips them - but they make the list longer than it needs to be.",
             };
-            foreach (var e in orphans.Take(8)) f.Evidence.Add(e.Path);
+
+            foreach (var e in orphans.Take(8))
+            {
+                // The folder name is the Workshop ID, so a line that is only a path can
+                // still be given a name - and once Steam has been asked, it can also say
+                // whether the mod is still there to re-subscribe to.
+                var id = Path.GetFileName(e.Path.TrimEnd(Path.DirectorySeparatorChar));
+                var item = _workshop is not null && _workshop.TryGetValue(id, out var hit) ? hit : null;
+
+                f.Evidence.Add(item is null
+                    ? e.Path
+                    : item.IsUnavailable
+                        ? $"{item.Title ?? id} ({id}) - no longer on the Workshop"
+                        : $"{item.Title ?? id} ({id}) - still on the Workshop, you unsubscribed");
+            }
+
             report.Findings.Add(f);
         }
 
@@ -406,7 +434,79 @@ public sealed class HealthScanner
         }
     }
 
-    // ---- 6. is a mod built for a much older Elin? ----
+    // ---- 6. what does Steam currently publish for these mods? ----
+
+    private void CheckWorkshop(ScanResult scan, HealthReport report)
+    {
+        if (_workshop is null) return;
+
+        var waiting = new List<(ModPackage Mod, DateTime Published)>();
+        var gone = new List<ModPackage>();
+
+        foreach (var mod in scan.Mods.Where(m => m.SourceType == TextureSourceType.Workshop))
+        {
+            if (mod.WorkshopId is null) continue;
+            if (!_workshop.TryGetValue(mod.WorkshopId, out var item)) continue;
+
+            switch (WorkshopStatus.For(mod, item))
+            {
+                case WorkshopState.UpdateWaiting when item.TimeUpdatedUtc is { } published:
+                    waiting.Add((mod, published));
+                    break;
+                case WorkshopState.Gone:
+                    gone.Add(mod);
+                    break;
+            }
+        }
+
+        if (waiting.Count > 0)
+        {
+            var finding = new HealthFinding
+            {
+                Severity = HealthSeverity.Notice,
+                Check = WorkshopCheck,
+                Title = $"{waiting.Count} mods have a newer version on the Workshop",
+                Detail = "The author published a change after your copy was last written. "
+                         + "Steam usually picks these up on its own, but it only does so "
+                         + "while it is running and not while the game is open.",
+                Suggestion = "Restart Steam, or open each mod's page and let it re-download.",
+            };
+
+            foreach (var (mod, published) in waiting.OrderByDescending(w => w.Published))
+            {
+                finding.ModKeys.Add(mod.Key);
+                finding.ModNames.Add(mod.Name);
+                finding.Evidence.Add($"{mod.Name}  published {published:yyyy-MM-dd}, "
+                                     + $"yours is from {mod.LastModifiedUtc:yyyy-MM-dd}");
+            }
+
+            report.Findings.Add(finding);
+        }
+
+        if (gone.Count == 0) return;
+
+        var removed = new HealthFinding
+        {
+            Severity = HealthSeverity.Notice,
+            Check = WorkshopCheck,
+            Title = $"{gone.Count} installed mods are no longer on the Workshop",
+            Detail = "The page has been removed, hidden or banned. Your copy still works "
+                     + "and will keep working, but it will never be updated again and "
+                     + "cannot be re-downloaded if you unsubscribe.",
+            Suggestion = "If you want to keep it, back the folder up before unsubscribing.",
+        };
+
+        foreach (var mod in gone)
+        {
+            removed.ModKeys.Add(mod.Key);
+            removed.ModNames.Add(mod.Name);
+            removed.Evidence.Add($"{mod.Name}  ({mod.WorkshopId})");
+        }
+
+        report.Findings.Add(removed);
+    }
+
+    // ---- 7. is a mod built for a much older Elin? ----
 
     private static void CheckVersions(ElinPaths paths,
         List<(ModPackage Mod, List<string> Dlls)> codeMods, HealthReport report)

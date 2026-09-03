@@ -153,15 +153,25 @@
             </Border>
 
             <!-- ============ NETWORK ============ -->
-            <TextBlock Text="GAME NEWS" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+            <TextBlock Text="NETWORK" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
 
             <Border Style="{StaticResource Card}">
                 <StackPanel>
+                    <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="These two switches are the only things that leave this machine. Everything else - scanning, conflicts, overrides, health, searching by picture - is done locally against files you already have. There is no account to sign in to, no API key, and no telemetry of any kind." />
+
                     <CheckBox Content="Let the News page fetch Elin's announcements from Steam"
                               IsChecked="{Binding EnableSteamNews}" />
-                    <TextBlock Style="{StaticResource SubtleText}" Margin="0,8,0,0"
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="22,6,0,0"
                                TextWrapping="Wrap"
-                               Text="This is the only thing the application sends over the network. It asks api.steampowered.com for the news of app 2135150 and nothing else - no account, no identifiers, no API key. Turn it off and the News page shows the last fetch it cached." />
+                               Text="Asks api.steampowered.com for the news of app 2135150 and nothing else. Turn it off and the News page shows the last fetch it cached." />
+
+                    <CheckBox Content="Let Mod Health ask Steam what it publishes for your mods"
+                              Margin="0,14,0,0"
+                              IsChecked="{Binding EnableWorkshopChecks}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="22,6,0,0"
+                               TextWrapping="Wrap"
+                               Text="This is the one that sends something about your library: the Workshop IDs of your installed mods, which are the public numbers in every mod's URL. Nothing else goes with them - no account, no machine identifier, no file names. In return Steam says which mods have a newer version waiting and which have been taken off the Workshop. Off by default; the answer is cached so it works offline afterwards." />
                 </StackPanel>
             </Border>
 

@@ -76,6 +76,17 @@ public sealed class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Whether Mod Health may ask Steam what it currently publishes for the installed
+    /// Workshop items. Off unless the user asks: it is the only thing that sends
+    /// anything about their library, even though that is only public ID numbers.
+    /// </summary>
+    public bool EnableWorkshopChecks
+    {
+        get => _app.Settings.EnableWorkshopChecks;
+        set { _app.Settings.EnableWorkshopChecks = value; Persist(); OnPropertyChanged(); }
+    }
+
+    /// <summary>
     /// Hand Workshop links to the Steam client rather than a browser. Local, and needs
     /// no sign-in - see the note beside it in the view.
     /// </summary>

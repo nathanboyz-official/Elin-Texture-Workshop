@@ -198,7 +198,16 @@ public sealed class HealthViewModel : ObservableObject
             var scan = _app.Scan;
             var loadOrder = _app.LoadOrder;
 
-            var report = await Task.Run(() => _scanner.Scan(paths, scan, loadOrder));
+            // Ask Steam first when the user has allowed it, so the checks that need it
+            // have something to work with. A failure there is not a failure of the scan.
+            if (_app.Settings.EnableWorkshopChecks)
+            {
+                var problem = await _app.Workshop.RefreshAsync();
+                if (problem is not null) StatusMessage = problem;
+            }
+
+            var workshop = _app.Workshop.HasData ? _app.Workshop.Items : null;
+            var report = await Task.Run(() => _scanner.Scan(paths, scan, loadOrder, workshop));
 
             _report = report;
             _hasRun = true;

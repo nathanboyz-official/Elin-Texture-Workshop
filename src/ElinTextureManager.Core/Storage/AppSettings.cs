@@ -54,6 +54,15 @@ public sealed class AppSettings
     public bool EnableSteamNews { get; set; } = true;
 
     /// <summary>
+    /// Whether to ask Steam what it publishes for the installed Workshop items.
+    ///
+    /// Off unless asked for. It needs no account and sends nothing but the Workshop IDs
+    /// already visible in every mod URL, but it is still the library leaving the machine,
+    /// and that should be the user deciding rather than a default.
+    /// </summary>
+    public bool EnableWorkshopChecks { get; set; }
+
+    /// <summary>
     /// Open Workshop links in the Steam desktop client rather than a browser. This is a
     /// local protocol hand-off and needs no account or sign-in; off sends them to the
     /// browser instead. Ignored when Steam is not installed.

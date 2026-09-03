@@ -31,6 +31,9 @@ public sealed class AppServices : IDisposable
     /// <summary>Colour index behind the reverse lookup. Built on demand, cached on disk.</summary>
     public SignatureIndex Signatures { get; }
 
+    /// <summary>What Steam publishes about the installed Workshop items. Opt-in.</summary>
+    public WorkshopStatusService Workshop { get; }
+
     /// <summary>Drives the halving search that finds which mod broke the game.</summary>
     public BisectRunner Bisect { get; }
 
@@ -38,6 +41,7 @@ public sealed class AppServices : IDisposable
     {
         Signatures = new SignatureIndex(Cache);
         Bisect = new BisectRunner(this);
+        Workshop = new WorkshopStatusService(this);
     }
 
     public LoadOrderDocument LoadOrder { get; set; } = new();
@@ -61,6 +65,7 @@ public sealed class AppServices : IDisposable
         Aliases.Load();
 
         Cache.Open(AppPaths.DatabaseFile);
+        Workshop.LoadCache();
 
         ResolvePaths();
     }
