@@ -102,4 +102,28 @@ public static class PixelDecoder
 
         return new PixelBuffer { Bgra = trimmed, Width = w, Height = h };
     }
+
+    /// <summary>
+    /// Turns a buffer back into something WPF can show.
+    ///
+    /// Frozen before it is returned: these are built on a background thread and handed
+    /// to the UI, and an unfrozen BitmapSource cannot cross threads.
+    /// </summary>
+    public static BitmapSource? ToBitmap(PixelBuffer? buffer)
+    {
+        if (buffer is null || buffer.IsEmpty) return null;
+
+        try
+        {
+            var bitmap = BitmapSource.Create(buffer.Width, buffer.Height, 96, 96,
+                PixelFormats.Bgra32, null, buffer.Bgra, buffer.Width * 4);
+
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

@@ -71,6 +71,11 @@ public static class NavIcons
         P("M3.4,2.6 L12.6,2.6 L12.6,13.4 L3.4,13.4 Z M5.8,5.6 L10.2,5.6 "
           + "M5.8,8 L10.2,8 M5.8,10.4 L8.6,10.4");
 
+    /// <summary>A figure with pieces added at its sides.</summary>
+    public static Geometry DressUp { get; } =
+        P("M8,2.2 A1.7,1.7 0 1,1 7.99,2.2 Z M5.2,6.4 L10.8,6.4 L10.8,10 L5.2,10 Z "
+          + "M6.2,10 L6.2,14 M9.8,10 L9.8,14 M3.6,7.2 L5.2,7.2 M10.8,7.2 L12.4,7.2");
+
     /// <summary>A list split in two: the halving this page does.</summary>
     public static Geometry Bisect { get; } =
         P("M2.6,4 L13.4,4 M2.6,7 L13.4,7 M2.6,12 L13.4,12 M8,9.2 L8,14.8 M5.6,9.6 L10.4,9.6");
@@ -112,6 +117,7 @@ public static class NavIcons
         "Identify" => Identify,
         "Setups" => Setups,
         "Bisect" => Bisect,
+        "DressUp" => DressUp,
         "News" => News,
         "Settings" => Settings,
         _ => null,

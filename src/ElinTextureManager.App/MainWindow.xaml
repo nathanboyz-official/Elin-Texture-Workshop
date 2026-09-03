@@ -32,6 +32,9 @@
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:SettingsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DressUpViewModel}">
+            <views:DressUpView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:BisectViewModel}">
             <views:BisectView />
         </DataTemplate>

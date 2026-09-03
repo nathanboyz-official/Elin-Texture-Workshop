@@ -87,6 +87,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Identify = new IdentifyViewModel(_app, OpenTextureDetail);
         Setups = new SetupsViewModel(_app, OnDataChanged);
         Bisect = new BisectViewModel(_app, OnDataChanged);
+        DressUp = new DressUpViewModel(_app);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(userRequested: true), () => !IsScanning);
         NavigateCommand = new RelayCommand(p => Navigate(p as string));
@@ -114,6 +115,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public SetupsViewModel Setups { get; }
 
     public BisectViewModel Bisect { get; }
+
+    public DressUpViewModel DressUp { get; }
 
     /// <summary>Every nav entry, in one list, for badges and selection.</summary>
     public ObservableCollection<NavItem> NavItems { get; } = new();
@@ -259,6 +262,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Add(LibraryNav, "Portraits", "Portraits",
             "Character portraits, grouped by what their file names encode.");
         Add(LibraryNav, "Objects", "Objects", "Furniture, walls and placed objects.");
+        Add(LibraryNav, "DressUp", "Dress Up",
+            "Build a character from the PCC parts across your mods and see how they look together.");
         Add(LibraryNav, "Pcc", "PCC Parts",
             "The layered parts characters are built from - hair, clothes, body, face. "
             + "Most character mods ship these and nothing else.");
@@ -303,6 +308,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanGoBack));
 
         foreach (var item in NavItems) item.IsSelected = item.Key == key;
+
+        // The dress-up preview animates on a timer. Leaving it running off-screen would
+        // recompose a character four times a second that nobody is looking at.
+        if (key != "DressUp") DressUp.Suspend();
 
         switch (key)
         {
@@ -355,6 +364,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 break;
             case "Identify":
                 CurrentPage = Identify;
+                break;
+            case "DressUp":
+                DressUp.Apply();
+                CurrentPage = DressUp;
                 break;
             case "Bisect":
                 Bisect.Apply();
