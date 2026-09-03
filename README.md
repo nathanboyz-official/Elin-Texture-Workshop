@@ -141,10 +141,17 @@ Or, when the problem is a whole mod rather than one texture:
    inside it.
 3. Extract the folder anywhere you like.
 4. Run **ElinTextureWorkshop.exe**.
+5. Optional: double-click **Create Desktop Shortcut.cmd** in the same folder to put an
+   icon on your desktop, so you can start it with a double-click from then on.
 
 That is the whole installation. There is no installer, no account, no browser component,
 and nothing to configure — the application finds Elin and your Workshop mods by itself on
 first launch.
+
+The shortcut script only writes a `.lnk` file to your desktop, which is a small file
+holding a path. Nothing is installed, no registry key is written, and deleting the
+shortcut changes nothing. Keep the extracted folder where it is, though — the shortcut
+points at it, so moving the folder afterwards will break it.
 
 You do **not** need .NET installed. The zip is self-contained, which is why it is around
 60 MB.

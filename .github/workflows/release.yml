@@ -58,6 +58,7 @@ jobs:
             1. Download **${{ env.ASSET }}** below.
             2. Right-click the zip, choose **Properties**, tick **Unblock**, then extract it.
             3. Run **ElinTextureWorkshop.exe**.
+            4. Optional: double-click **Create Desktop Shortcut.cmd** for a desktop icon.
 
             No installer and no .NET needed - everything is inside the zip.
 

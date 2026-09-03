@@ -24,4 +24,15 @@
     <Resource Include="..\..\assets\ElinTextureWorkshop.ico" Link="AppIcon.ico" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ships beside the executable so someone who extracts the zip can make a desktop
+         shortcut by double-clicking, rather than being told to do it by hand. -->
+    <None Include="..\..\scripts\Create Desktop Shortcut.cmd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\scripts\Create Desktop Shortcut.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
