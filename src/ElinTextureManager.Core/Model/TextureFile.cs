@@ -49,9 +49,7 @@ public sealed class TextureFile
     /// Portraits are a category by virtue of the folder they live in; their prefix carries
     /// the group instead, so it must not be asked what category they are.
     /// </summary>
-    public string Category => Kind == ReplacementKind.Portrait
-        ? TextureCategory.Portraits
-        : TextureCategory.ForPrefix(Identity.Prefix);
+    public string Category => TextureCategory.ForKind(Kind, Identity.Prefix);
 
     /// <summary>
     /// The ID as the user should read it. Portrait IDs are namespaced in the index so a

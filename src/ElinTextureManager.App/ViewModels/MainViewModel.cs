@@ -238,6 +238,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Add(LibraryNav, "Portraits", "Portraits",
             "Character portraits, grouped by what their file names encode.");
         Add(LibraryNav, "Objects", "Objects", "Furniture, walls and placed objects.");
+        Add(LibraryNav, "Pcc", "PCC Parts",
+            "The layered parts characters are built from - hair, clothes, body, face. "
+            + "Most character mods ship these and nothing else.");
 
         Add(ManagementNav, "Conflicts", "Conflicts",
             "Images supplied by more than one enabled mod. These are the ones you have "
@@ -293,6 +296,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             case "Objects":
                 ShowBrowser("Objects", TextureCategory.Objects, TextureScope.All,
                     "Furniture, walls and placed objects.");
+                break;
+            case "Pcc":
+                ShowBrowser("PCC Parts", TextureCategory.Pcc, TextureScope.All,
+                    "Grouped by the layer each file draws. These are usually greyscale - "
+                    + "Elin tints them per character - so the shape is what identifies them.");
                 break;
             case "Conflicts":
                 ShowBrowser("Conflicts", null, TextureScope.ConflictsOnly,

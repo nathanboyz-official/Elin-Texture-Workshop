@@ -20,9 +20,7 @@ public sealed class TextureEntry
     /// Portraits are a category by virtue of the folder they live in; their prefix carries
     /// the group (Female, Male, Background …) instead.
     /// </summary>
-    public string Category => Kind == ReplacementKind.Portrait
-        ? TextureCategory.Portraits
-        : TextureCategory.ForPrefix(Prefix);
+    public string Category => TextureCategory.ForKind(Kind, Prefix);
 
     /// <summary>
     /// True for the "-overlay" layer that belongs on top of another portrait. Elin draws

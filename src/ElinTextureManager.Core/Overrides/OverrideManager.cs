@@ -52,8 +52,8 @@ public sealed class OverrideManager
         try
         {
             Directory.CreateDirectory(_paths.OverridePackageRoot);
-            Directory.CreateDirectory(_paths.OverrideTextureRoot);
-            Directory.CreateDirectory(_paths.OverridePortraitRoot);
+            foreach (var kind in ReplacementKindExtensions.All)
+                Directory.CreateDirectory(_paths.OverrideRootFor(kind));
 
             if (!File.Exists(_paths.OverridePackageXml))
             {
@@ -261,11 +261,12 @@ public sealed class OverrideManager
         // Sweep any orphaned PNGs that no longer have a selection record.
         try
         {
-            foreach (var root in new[] { _paths.OverrideTextureRoot, _paths.OverridePortraitRoot })
+            foreach (var kind in ReplacementKindExtensions.All)
             {
+                var root = _paths.OverrideRootFor(kind);
                 if (!Directory.Exists(root)) continue;
 
-                foreach (var file in Directory.GetFiles(root, "*.png"))
+                foreach (var file in Directory.GetFiles(root, "*.png", SearchOption.AllDirectories))
                 {
                     var verdict = SafePath.CanDeleteOverrideFile(file, _paths, Path.GetFileName(file));
                     if (!verdict.Allowed) { failed++; continue; }

@@ -23,11 +23,21 @@ public sealed class ScanOptions
     public bool IncludeLocalPackages { get; set; } = true;
 
     /// <summary>
-    /// Also index a mod's "Portrait" folder. Elin packages mirror the layout of
-    /// Package\_Elona, so a mod replacing portraits ships them there rather than in
-    /// "Texture Replace"; without this such mods are invisible.
+    /// Which replacement folders to index besides "Texture Replace". Elin packages
+    /// mirror the layout of Package\_Elona, and a mod that only ships PCC parts or loose
+    /// Texture files is otherwise completely invisible - on a real library that is more
+    /// images than the ones which do show up.
     /// </summary>
-    public bool IncludePortraits { get; set; } = true;
+    public HashSet<ReplacementKind> Kinds { get; } = new(ReplacementKindExtensions.All);
+
+    public bool Includes(ReplacementKind kind) => Kinds.Contains(kind);
+
+    /// <summary>Kept for callers that only care about portraits.</summary>
+    public bool IncludePortraits
+    {
+        get => Includes(ReplacementKind.Portrait);
+        set { if (value) Kinds.Add(ReplacementKind.Portrait); else Kinds.Remove(ReplacementKind.Portrait); }
+    }
 }
 
 /// <summary>
@@ -206,10 +216,16 @@ public sealed class ModScanner
         foreach (var textureRoot in FindReplacementFolders(dir, ElinPaths.TextureReplaceFolder, result))
             CollectTextures(mod, textureRoot, result);
 
-        if (_options.IncludePortraits)
+        // The other replacement folders hold whole files addressed by name, so they are
+        // walked recursively and each file keeps its path below the root. PCC needs that:
+        // "female\pcc_hair_x.png" and "male\pcc_hair_x.png" are different images.
+        foreach (var kind in ReplacementKindExtensions.All)
         {
-            foreach (var portraitRoot in FindReplacementFolders(dir, ElinPaths.PortraitFolder, result))
-                CollectPortraits(mod, portraitRoot, result);
+            if (kind == ReplacementKind.TextureReplace) continue;
+            if (!_options.Includes(kind)) continue;
+
+            foreach (var root in FindReplacementFolders(dir, kind.LeafFolderName(), result))
+                CollectNamed(mod, root, kind, result);
         }
 
         return mod;
@@ -271,9 +287,14 @@ public sealed class ModScanner
         return found;
     }
 
+    /// <summary>
+    /// True for any folder that is itself a replacement point. The search never descends
+    /// into one looking for another, so a stray "Texture" folder inside "Texture Replace"
+    /// cannot pull the same files in twice under two different kinds.
+    /// </summary>
     private static bool IsReplacementFolderName(string name) =>
-        string.Equals(name, ElinPaths.TextureReplaceFolder, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, ElinPaths.PortraitFolder, StringComparison.OrdinalIgnoreCase);
+        ReplacementKindExtensions.All.Any(k =>
+            string.Equals(name, k.LeafFolderName(), StringComparison.OrdinalIgnoreCase));
 
     private static bool IsReparsePoint(string dir)
     {
@@ -304,18 +325,34 @@ public sealed class ModScanner
     }
 
     /// <summary>
-    /// Indexes a mod's "Portrait" folder. Portraits are matched by their whole vanilla
-    /// file name, and sub-folders there are not a variant convention the game uses, so
-    /// only the files sitting directly in the folder are taken.
+    /// Indexes a replacement folder whose files are addressed by name rather than by an
+    /// atlas slot: Portrait, Actor\PCC, Texture and TextureforTE.
+    ///
+    /// Walked recursively, because PCC splits by sex and mods nest their loose textures.
+    /// Each file keeps its path below the root, which is what stops "female\pcc_hair_x"
+    /// and "male\pcc_hair_x" from collapsing into one entry.
     /// </summary>
-    private void CollectPortraits(ModPackage mod, string portraitRoot, ScanResult result)
+    private void CollectNamed(ModPackage mod, string root, ReplacementKind kind, ScanResult result)
     {
-        AddFiles(mod, portraitRoot, ReplacementKind.Portrait,
-            isVariant: false, variantName: null, result);
+        AddFiles(mod, root, kind, isVariant: false, variantName: null, result, root);
+
+        string[] subs;
+        try { subs = Directory.GetDirectories(root, "*", SearchOption.AllDirectories); }
+        catch (Exception ex)
+        {
+            RecordError(result, $"Cannot list {root}: {ex.Message}");
+            return;
+        }
+
+        foreach (var sub in subs)
+        {
+            if (IsReparsePoint(sub)) continue;
+            AddFiles(mod, sub, kind, isVariant: false, variantName: null, result, root);
+        }
     }
 
     private void AddFiles(ModPackage mod, string dir, ReplacementKind kind,
-        bool isVariant, string? variantName, ScanResult result)
+        bool isVariant, string? variantName, ScanResult result, string? replacementRoot = null)
     {
         string[] files;
         try { files = Directory.GetFiles(dir); }
@@ -334,13 +371,16 @@ public sealed class ModScanner
                 var fi = new FileInfo(file);
                 var name = fi.Name;
 
+                // Relative to the replacement folder, so nesting survives into the ID.
+                var withinRoot = replacementRoot is null
+                    ? name
+                    : Relative(replacementRoot, fi.FullName);
+
                 var texture = new TextureFile
                 {
                     FullPath = fi.FullName,
                     FileName = name,
-                    Identity = kind == ReplacementKind.Portrait
-                        ? TextureIdentity.ForPortrait(name)
-                        : TextureIdentity.Parse(name),
+                    Identity = TextureIdentity.ForReplacement(kind, withinRoot),
                     RelativePath = Relative(mod.Directory, fi.FullName),
                     ModKey = mod.Key,
                     ModName = mod.Name,

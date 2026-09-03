@@ -1,3 +1,4 @@
+using ElinTextureManager.Core.Model;
 using ElinTextureManager.Core.Logging;
 
 namespace ElinTextureManager.Core.Detection;
@@ -49,10 +50,10 @@ public sealed class ElinPaths
     /// Which folder inside the override package a replacement of the given kind is
     /// written to. A package mirrors the layout of _Elona, so the kind picks the folder.
     /// </summary>
-    public string OverrideRootFor(Model.ReplacementKind kind) => kind switch
+    public string OverrideRootFor(ReplacementKind kind) => kind switch
     {
-        Model.ReplacementKind.Portrait => OverridePortraitRoot,
-        _ => OverrideTextureRoot,
+        ReplacementKind.TextureReplace => OverrideTextureRoot,
+        _ => Path.Combine(OverridePackageRoot, kind.FolderName()),
     };
 
     public bool LooksValid => Directory.Exists(ElinRoot) && File.Exists(ExecutablePath);

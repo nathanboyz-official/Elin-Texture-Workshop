@@ -11,7 +11,22 @@ public static class TextureCategory
     public const string Items = "Items";
     public const string Portraits = "Portraits";
     public const string Objects = "Objects";
+
+    /// <summary>The layered parts characters are built from. See PccPart.</summary>
+    public const string Pcc = "PCC";
+
     public const string Other = "Other";
+
+    /// <summary>
+    /// The category for a file, given the folder it came from. The folder decides it for
+    /// everything except "Texture Replace", where only the file name carries the meaning.
+    /// </summary>
+    public static string ForKind(ReplacementKind kind, string? prefix) => kind switch
+    {
+        ReplacementKind.Portrait => Portraits,
+        ReplacementKind.Pcc => Pcc,
+        _ => ForPrefix(prefix),
+    };
 
     private static readonly Dictionary<string, string> Known =
         new(StringComparer.OrdinalIgnoreCase)
@@ -38,5 +53,5 @@ public static class TextureCategory
 
     /// <summary>Categories shown as fixed sidebar entries, in display order.</summary>
     public static IReadOnlyList<string> Primary { get; } =
-        new[] { Characters, Items, Portraits, Objects, Other };
+        new[] { Characters, Items, Portraits, Pcc, Objects, Other };
 }

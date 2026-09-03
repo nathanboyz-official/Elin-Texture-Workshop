@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace ElinTextureManager.Core.Model;
 
@@ -47,12 +47,22 @@ public sealed record TextureIdentity(string TextureId, string Prefix, int? Numer
         return new TextureIdentity(name, name, null);
     }
 
+    /// <summary>Namespace prefix per replacement kind. See <see cref="PortraitNamespace"/>.</summary>
+    public static string NamespaceFor(ReplacementKind kind) => kind switch
+    {
+        ReplacementKind.Portrait => PortraitNamespace,
+        ReplacementKind.Pcc => "pcc:",
+        ReplacementKind.Texture => "texture:",
+        ReplacementKind.TextureExpand => "te:",
+        _ => string.Empty,
+    };
+
     /// <summary>
     /// Identity for a file in a "Portrait" folder. Portraits are addressed by their whole
     /// vanilla file name ("UN_ashland.png", "special_f-Alice-TCO.png"), which has no
     /// index to parse, so the name is kept intact under the portrait namespace.
     ///
-    /// The prefix carries the portrait's group (Female, Male, Background …) rather than a
+    /// The prefix carries the portrait's group (Female, Male, Background â€¦) rather than a
     /// constant, so the grid's prefix filter says something useful about 2000 portraits.
     /// The category does not come from the prefix for portraits - see TextureFile.Category.
     /// </summary>
@@ -68,13 +78,64 @@ public sealed record TextureIdentity(string TextureId, string Prefix, int? Numer
         return new TextureIdentity(PortraitNamespace + name, PortraitGroup.ForName(name), null);
     }
 
+    /// <summary>
+    /// Identity for a file in any replacement folder.
+    ///
+    /// <paramref name="relativePath"/> is the path below the replacement root, so a PCC
+    /// part keeps its "female\" or "male\" folder: the same hair file name can exist for
+    /// both, and they are different images. The separator is normalised so an ID does not
+    /// depend on which way the slashes leaned when it was scanned.
+    /// </summary>
+    public static TextureIdentity ForReplacement(ReplacementKind kind, string relativePath)
+    {
+        if (kind == ReplacementKind.TextureReplace) return Parse(Path.GetFileName(relativePath));
+        if (kind == ReplacementKind.Portrait) return ForPortrait(Path.GetFileName(relativePath));
+
+        if (string.IsNullOrWhiteSpace(relativePath))
+            return new TextureIdentity(string.Empty, string.Empty, null);
+
+        var withoutExtension = Path.Combine(
+            Path.GetDirectoryName(relativePath) ?? string.Empty,
+            Path.GetFileNameWithoutExtension(relativePath));
+
+        var id = withoutExtension.Replace(Path.DirectorySeparatorChar, '/').Trim('/');
+        if (id.Length == 0) return new TextureIdentity(string.Empty, string.Empty, null);
+
+        var fileName = Path.GetFileName(relativePath);
+
+        var group = kind switch
+        {
+            ReplacementKind.Pcc => PccPart.ForFileName(fileName),
+            // A TextureExpand variant is "<sprite>#<condition>"; the condition is the
+            // useful axis, since the sprite it varies is already in the name.
+            ReplacementKind.TextureExpand => ConditionOf(fileName),
+            _ => Parse(fileName).Prefix,
+        };
+
+        return new TextureIdentity(NamespaceFor(kind) + id, group, null);
+    }
+
+    /// <summary>The "#condition" part of a TextureExpand file name, or "base" when plain.</summary>
+    private static string ConditionOf(string fileName)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        var hash = name.IndexOf('#');
+        return hash >= 0 && hash < name.Length - 1 ? name[(hash + 1)..] : "base";
+    }
+
     /// <summary>Strips the index namespace from an ID so the user sees the plain name.</summary>
     public static string Display(string? textureId)
     {
         if (string.IsNullOrEmpty(textureId)) return string.Empty;
-        return textureId.StartsWith(PortraitNamespace, StringComparison.Ordinal)
-            ? textureId[PortraitNamespace.Length..]
-            : textureId;
+
+        foreach (var kind in ReplacementKindExtensions.All)
+        {
+            var ns = NamespaceFor(kind);
+            if (ns.Length > 0 && textureId.StartsWith(ns, StringComparison.Ordinal))
+                return textureId[ns.Length..];
+        }
+
+        return textureId;
     }
 
     /// <summary>True when the ID belongs to a portrait rather than a sprite.</summary>

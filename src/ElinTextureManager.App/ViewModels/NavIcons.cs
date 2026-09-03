@@ -61,6 +61,11 @@ public static class NavIcons
     public static Geometry LoadOrder { get; } =
         P("M5,13 L5,3.2 M2.9,5.3 L5,3.2 L7.1,5.3 M11,3 L11,12.8 M8.9,10.7 L11,12.8 L13.1,10.7");
 
+    /// <summary>Layered paper-doll parts.</summary>
+    public static Geometry Pcc { get; } =
+        P("M8,1.8 A1.9,1.9 0 1,1 7.99,1.8 Z M4.6,6.4 L11.4,6.4 L11.4,10.2 L4.6,10.2 Z "
+          + "M3.2,12.2 L12.8,12.2 M5.4,14.2 L10.6,14.2");
+
     /// <summary>An announcement sheet.</summary>
     public static Geometry News { get; } =
         P("M3.4,2.6 L12.6,2.6 L12.6,13.4 L3.4,13.4 Z M5.8,5.6 L10.2,5.6 "
@@ -80,6 +85,7 @@ public static class NavIcons
         "Items" => Items,
         "Portraits" => Portraits,
         "Objects" => Objects,
+        "Pcc" => Pcc,
         "Conflicts" => Conflicts,
         "Overrides" => Overrides,
         "Mods" => Mods,

@@ -108,14 +108,17 @@ public static class SafePath
         if (!File.Exists(target))
             return SafetyVerdict.Deny("File does not exist.");
 
-        // Confined to the two replacement folders of our own package. Everything else in
-        // the package root - package.xml above all - is deliberately not deletable.
-        var textureRoot = Normalize(paths.OverrideTextureRoot);
-        var portraitRoot = Normalize(paths.OverridePortraitRoot);
-        if (textureRoot is null || portraitRoot is null)
+        // Confined to the replacement folders of our own package. Everything else in the
+        // package root - package.xml above all - is deliberately not deletable.
+        var roots = Model.ReplacementKindExtensions.All
+            .Select(k => Normalize(paths.OverrideRootFor(k)))
+            .Where(r => r is not null)
+            .ToList();
+
+        if (roots.Count == 0)
             return SafetyVerdict.Deny("Override folder is not configured.");
 
-        if (!IsInside(target, textureRoot) && !IsInside(target, portraitRoot))
+        if (!roots.Any(r => IsInside(target, r)))
             return SafetyVerdict.Deny("Path is outside the override replacement folders.");
 
         // The override folder is inside the Elin install, so the two checks below are
