@@ -742,7 +742,8 @@ public sealed class DressUpViewModel : ObservableObject
 
         var editor = new SpriteEditorViewModel(_app, part.Part, sheet, Preview,
             id => _library.Resolve(part.Layer, new PccChoice { Set = part.Part.Set, Id = id }) is not null
-                  || PccPartWriter.Exists(_app.Paths, part.Part.Set, part.Layer, id));
+                  || PccPartWriter.Exists(_app.Paths, part.Part.Set, part.Layer, id),
+            (direction, frame) => ComposeAsync(direction, frame, scale: 10));
 
         var window = new Views.SpriteEditorWindow(editor)
         {
@@ -938,15 +939,18 @@ public sealed class DressUpViewModel : ObservableObject
         ShellService.OpenFolder(PccStyleFile.FolderIn(_app.Paths.ElinRoot));
     }
 
-    private async void Render()
+    private async void Render() => Preview = await ComposeAsync(Direction, Frame, scale: 6);
+
+    /// <summary>
+    /// Draws the character at a given facing and frame. Public so the sprite editor can
+    /// keep its backdrop pointing the same way as the cell being edited.
+    /// </summary>
+    public Task<BitmapSource?> ComposeAsync(int direction, int frame, int scale)
     {
         var (found, _) = _library.ResolveStyle(_style);
-        var direction = Direction;
-        var frame = Frame;
-
         var wanted = found.Select(f => (f.Layer, f.Part.FullPath, f.Choice.Rgb())).ToList();
 
-        Preview = await Task.Run(() =>
+        return Task.Run(() =>
         {
             var pieces = new List<PccPiece>();
 
@@ -958,7 +962,7 @@ public sealed class DressUpViewModel : ObservableObject
                 pieces.Add(new PccPiece { Layer = layer, Sheet = sheet, Tint = tint });
             }
 
-            return PixelDecoder.ToBitmap(PccComposer.Compose(pieces, direction, frame, scale: 6));
+            return PixelDecoder.ToBitmap(PccComposer.Compose(pieces, direction, frame, scale));
         });
     }
 }

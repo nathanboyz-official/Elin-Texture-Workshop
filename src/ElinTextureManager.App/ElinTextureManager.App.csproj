@@ -35,6 +35,12 @@
     <!-- Also embedded as a resource so the window and taskbar can use the crisp
          per-size images rather than a scaled copy of the executable's icon. -->
     <Resource Include="..\..\assets\ElinTextureWorkshop.ico" Link="AppIcon.ico" />
+
+    <!-- Tool icons, drawn as pixel art so they match the sprites they sit beside. -->
+    <Resource Include="..\..\assets\tools\tool_pencil.png" Link="Tools/tool_pencil.png" />
+    <Resource Include="..\..\assets\tools\tool_eraser.png" Link="Tools/tool_eraser.png" />
+    <Resource Include="..\..\assets\tools\tool_fill.png" Link="Tools/tool_fill.png" />
+    <Resource Include="..\..\assets\tools\tool_dropper.png" Link="Tools/tool_dropper.png" />
   </ItemGroup>
 
   <ItemGroup>

@@ -14,10 +14,11 @@
     <Window.Resources>
         <Style x:Key="ToolChip" TargetType="RadioButton">
             <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Padding" Value="7,4" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Shell" Padding="10,5"
+                        <Border x:Name="Shell" Padding="{TemplateBinding Padding}"
                                 CornerRadius="{StaticResource RadiusControl}"
                                 Background="{StaticResource SurfaceSunkenBrush}"
                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
@@ -68,18 +69,31 @@
 
         <!-- === TOOLS === -->
         <WrapPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,10">
-            <RadioButton Content="Pencil" Style="{StaticResource ToolChip}" GroupName="Tool"
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool" ToolTip="Pencil"
                          IsChecked="{Binding IsPencil, Mode=OneWay}"
-                         Command="{Binding PickToolCommand}" CommandParameter="Pencil" />
-            <RadioButton Content="Eraser" Style="{StaticResource ToolChip}" GroupName="Tool"
+                         Command="{Binding PickToolCommand}" CommandParameter="Pencil">
+                <Image Source="/Tools/tool_pencil.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool" ToolTip="Eraser"
                          IsChecked="{Binding IsEraser, Mode=OneWay}"
-                         Command="{Binding PickToolCommand}" CommandParameter="Eraser" />
-            <RadioButton Content="Fill" Style="{StaticResource ToolChip}" GroupName="Tool"
+                         Command="{Binding PickToolCommand}" CommandParameter="Eraser">
+                <Image Source="/Tools/tool_eraser.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool" ToolTip="Fill"
                          IsChecked="{Binding IsFill, Mode=OneWay}"
-                         Command="{Binding PickToolCommand}" CommandParameter="Fill" />
-            <RadioButton Content="Dropper" Style="{StaticResource ToolChip}" GroupName="Tool"
+                         Command="{Binding PickToolCommand}" CommandParameter="Fill">
+                <Image Source="/Tools/tool_fill.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool" ToolTip="Dropper"
                          IsChecked="{Binding IsDropper, Mode=OneWay}"
-                         Command="{Binding PickToolCommand}" CommandParameter="Dropper" />
+                         Command="{Binding PickToolCommand}" CommandParameter="Dropper"
+                         Visibility="{Binding Painting, Converter={StaticResource BoolToVis}}">
+                <Image Source="/Tools/tool_dropper.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
 
             <TextBlock Text="NIB" Style="{StaticResource SectionHeader}"
                        VerticalAlignment="Center" Margin="12,0,6,0" />
@@ -91,6 +105,35 @@
             <Button Content="Redo" Style="{StaticResource SubtleButton}" Padding="8,3"
                     Command="{Binding RedoCommand}" />
         </WrapPanel>
+
+        <!-- === WHICH STEP === -->
+        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Card}" Padding="10,7"
+                Margin="0,0,0,10" VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="{Binding StageTitle}" Style="{StaticResource SectionHeader}" />
+                <TextBlock Text="{Binding StageHint}" Style="{StaticResource SubtleText}"
+                           TextWrapping="Wrap" Margin="0,5,0,8" />
+
+                <Button Content="Next: choose what takes the dye"
+                        Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch"
+                        Visibility="{Binding Painting, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding NextCommand}" />
+
+                <StackPanel Visibility="{Binding Marking, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding MarkedCount}" Style="{StaticResource MonoText}"
+                               Margin="0,0,0,7" />
+                    <UniformGrid Columns="2">
+                        <Button Content="All of it" Style="{StaticResource SubtleButton}"
+                                Margin="0,0,3,0" Command="{Binding MarkAllCommand}" />
+                        <Button Content="None of it" Style="{StaticResource SubtleButton}"
+                                Margin="3,0,0,0" Command="{Binding MarkNoneCommand}" />
+                    </UniformGrid>
+                    <Button Content="Back to painting" Style="{StaticResource SubtleButton}"
+                            HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                            Command="{Binding BackCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
         <!-- === CANVAS === -->
         <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource Card}" Padding="12"
@@ -163,11 +206,12 @@
                 </Border>
 
                 <!-- === COLOUR === -->
-                <Border Style="{StaticResource Card}" Padding="12" Margin="0,10,0,0">
+                <Border Style="{StaticResource Card}" Padding="12" Margin="0,10,0,0"
+                        Visibility="{Binding Painting, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
                         <TextBlock Text="COLOUR" Style="{StaticResource SectionHeader}" />
                         <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,5,0,8"
-                                   Text="Greys first, because the game dyes these parts as it draws them - a part drawn in colour cannot be recoloured in game." />
+                                   Text="Paint in whatever colours you like. Step 2 is where you say which of it the character's own colour reaches." />
 
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <Border Width="34" Height="24" CornerRadius="3" Margin="0,0,8,0"

@@ -36,12 +36,20 @@ public sealed class SpriteEditorViewModel : ObservableObject
     private const int UndoDepth = 60;
 
     private readonly AppServices _app;
-    private readonly List<byte[]> _undo = new();
-    private readonly List<byte[]> _redo = new();
+    // Tagged, because the two steps undo different things: the painting and the
+    // marking. An untagged stack would try to restore a mask over a sheet, whose
+    // lengths differ, and quietly do nothing at all.
+    private readonly List<(bool Mask, byte[] Data)> _undo = new();
+    private readonly List<(bool Mask, byte[] Data)> _redo = new();
+
+    private readonly PccDyeMask _mask;
+    private readonly Func<int, int, Task<BitmapSource?>>? _renderCharacter;
 
     private PccSheet _sheet;
     private BitmapSource? _canvas;
     private BitmapSource? _character;
+    private bool _marking;
+    private bool _maskStarted;
 
     private SpriteTool _tool = SpriteTool.Pencil;
     private int _nib = 1;
@@ -56,17 +64,27 @@ public sealed class SpriteEditorViewModel : ObservableObject
     private string? _status;
 
     public SpriteEditorViewModel(AppServices app, PccFile source, PccSheet sheet,
-        BitmapSource? character, Func<string, bool> nameTaken)
+        BitmapSource? character, Func<string, bool> nameTaken,
+        Func<int, int, Task<BitmapSource?>>? renderCharacter = null)
     {
         _app = app;
         Source = source;
         _sheet = sheet;
         _character = character;
+        _mask = new PccDyeMask(sheet.Width, sheet.Height);
+        _renderCharacter = renderCharacter;
 
         SaveId = PccPartName.Available(source.Id, nameTaken);
 
-        foreach (var grey in new[] { 255, 224, 192, 160, 128, 96, 64, 32, 0 })
-            Greys.Add(new DyeViewModel($"{grey:X2}{grey:X2}{grey:X2}"));
+        // Paint in colour: a part is easier to draw as it should look than as the grey
+        // it will be stored as. Which of it follows the character's dye is decided after.
+        foreach (var hex in new[]
+                 {
+                     "FFFFFF", "C8C8C8", "909090", "585858", "202020",
+                     "D06060", "E08840", "E0C050", "70B060", "50A0B0",
+                     "5878C0", "8060B0", "C070A0", "8A6A4A", "B89070",
+                 })
+            Greys.Add(new DyeViewModel(hex));
 
         foreach (var hex in _app.Settings.SavedColours) Saved.Add(new DyeViewModel(hex));
 
@@ -89,6 +107,20 @@ public sealed class SpriteEditorViewModel : ObservableObject
         {
             if (int.TryParse(p as string, out var by)) Zoom = Math.Clamp(Zoom + by, 4, 20);
         });
+        NextCommand = new RelayCommand(_ => GoToMarking());
+        BackCommand = new RelayCommand(_ => Marking = false);
+        MarkAllCommand = new RelayCommand(_ =>
+        {
+            RememberMask();
+            _mask.MarkAllDrawn(_sheet);
+            Redraw();
+        });
+        MarkNoneCommand = new RelayCommand(_ =>
+        {
+            RememberMask();
+            _mask.Clear();
+            Redraw();
+        });
 
         Redraw();
     }
@@ -108,10 +140,75 @@ public sealed class SpriteEditorViewModel : ObservableObject
     public RelayCommand ChooseColourCommand { get; }
     public AsyncRelayCommand PickFromScreenCommand { get; }
     public RelayCommand ZoomCommand { get; }
+    public RelayCommand NextCommand { get; }
+    public RelayCommand BackCommand { get; }
+    public RelayCommand MarkAllCommand { get; }
+    public RelayCommand MarkNoneCommand { get; }
 
 
     /// <summary>Called with the new part's path once it has been written.</summary>
     public Action<string>? Finished { get; set; }
+
+    /// <summary>
+    /// False while painting, true while choosing what the character's dye reaches.
+    ///
+    /// Two steps rather than one because they are two different jobs: drawing the thing
+    /// as it should look, and then saying which of it is cloth that follows the wearer
+    /// and which is a brass buckle that stays brass.
+    /// </summary>
+    public bool Marking
+    {
+        get => _marking;
+        private set
+        {
+            SetProperty(ref _marking, value);
+            OnPropertyChanged(nameof(Painting));
+            OnPropertyChanged(nameof(StageTitle));
+            OnPropertyChanged(nameof(StageHint));
+            OnPropertyChanged(nameof(MarkedCount));
+            Redraw();
+        }
+    }
+
+    public bool Painting => !_marking;
+
+    public string StageTitle => _marking ? "STEP 2 - WHAT TAKES THE DYE" : "STEP 1 - PAINT IT";
+
+    /// <summary>
+    /// Careful about what it promises. The game multiplies the whole part by one
+    /// colour, so an unmarked pixel is not untouched - it keeps its own hue through the
+    /// multiply rather than ignoring the dye. Saying "keeps the colour you painted"
+    /// flatly would be a promise the format cannot keep.
+    /// </summary>
+    public string StageHint => _marking
+        ? "Red is stored as grey, so the character's colour comes through it cleanly. "
+          + "The rest keeps the hue you painted - the game tints the whole part, so it "
+          + "is shaded by the dye rather than ignoring it. Paint to mark, erase to unmark."
+        : "Paint it as it should look. You choose what the character's colour reaches "
+          + "on the next step.";
+
+    public string MarkedCount => _marking
+        ? $"{_mask.CountIn(Direction, Frame)} pixels of this cell take the dye"
+        : string.Empty;
+
+    /// <summary>
+    /// Moves to marking, starting from everything the part draws.
+    ///
+    /// That default because it is what every installed part does - the whole thing
+    /// follows the character - so the common case needs no work and the exceptions are
+    /// erased out of it.
+    /// </summary>
+    private void GoToMarking()
+    {
+        if (!_maskStarted)
+        {
+            _mask.MarkAllDrawn(_sheet);
+            _maskStarted = true;
+        }
+
+        Tool = SpriteTool.Pencil;
+        Marking = true;
+    }
 
     public SpriteTool Tool
     {
@@ -146,6 +243,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
         {
             SetProperty(ref _direction, Math.Clamp(value, 0, PccComposer.Rows - 1));
             OnPropertyChanged(nameof(CellName));
+            OnPropertyChanged(nameof(MarkedCount));
+            RefreshCharacter();
             Redraw();
         }
     }
@@ -157,8 +256,28 @@ public sealed class SpriteEditorViewModel : ObservableObject
         {
             SetProperty(ref _frame, Math.Clamp(value, 0, PccComposer.Columns - 1));
             OnPropertyChanged(nameof(CellName));
+            OnPropertyChanged(nameof(MarkedCount));
+            RefreshCharacter();
             Redraw();
         }
+    }
+
+    /// <summary>
+    /// Redraws the character behind to face the way the cell being edited does.
+    ///
+    /// Without this the backdrop stays facing front while the back of a hat is drawn
+    /// against it, which is worse than no backdrop at all - it is a reference that
+    /// quietly disagrees with the work.
+    /// </summary>
+    private async void RefreshCharacter()
+    {
+        if (_renderCharacter is null) return;
+
+        var rendered = await _renderCharacter(Direction, Frame);
+        if (rendered is null) return;
+
+        _character = rendered;
+        OnPropertyChanged(nameof(Character));
     }
 
     public string CellName => $"{PccFacing.NameOf(Direction)}, frame {Frame + 1} of {PccComposer.Columns}";
@@ -248,6 +367,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
     /// </summary>
     public void Apply(int x, int y, bool starting)
     {
+        if (Marking) { Mark(x, y, starting); return; }
+
         if (Tool == SpriteTool.Dropper)
         {
             var pixel = _sheet.Get(Direction, Frame, x, y);
@@ -273,6 +394,75 @@ public sealed class SpriteEditorViewModel : ObservableObject
         }
 
         Redraw();
+    }
+
+    /// <summary>
+    /// Marks or unmarks pixels for dyeing. The pencil marks, the eraser unmarks, and the
+    /// fill marks a whole region of one colour - which is the quick way to say "all of
+    /// the cloth, none of the buckle".
+    /// </summary>
+    private void Mark(int x, int y, bool starting)
+    {
+        if (starting) RememberMask();
+
+        switch (Tool)
+        {
+            case SpriteTool.Eraser:
+                _mask.Paint(Direction, Frame, x, y, Nib, false);
+                break;
+
+            case SpriteTool.Fill:
+                MarkRegion(x, y, true);
+                break;
+
+            default:
+                _mask.Paint(Direction, Frame, x, y, Nib, true);
+                break;
+        }
+
+        OnPropertyChanged(nameof(MarkedCount));
+        Redraw();
+    }
+
+    /// <summary>Marks everything joined to this pixel that was painted the same colour.</summary>
+    private void MarkRegion(int x, int y, bool dyeable)
+    {
+        var target = _sheet.Get(Direction, Frame, x, y);
+        if (target.A == 0) return;
+
+        var queue = new Queue<(int X, int Y)>();
+        var seen = new bool[_sheet.CellWidth * _sheet.CellHeight];
+
+        queue.Enqueue((x, y));
+        seen[y * _sheet.CellWidth + x] = true;
+
+        while (queue.Count > 0)
+        {
+            var (cx, cy) = queue.Dequeue();
+            if (_sheet.Get(Direction, Frame, cx, cy) != target) continue;
+
+            _mask.Set(Direction, Frame, cx, cy, dyeable);
+
+            foreach (var (nx, ny) in new[] { (cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1) })
+            {
+                if (nx < 0 || ny < 0 || nx >= _sheet.CellWidth || ny >= _sheet.CellHeight) continue;
+
+                var key = ny * _sheet.CellWidth + nx;
+                if (seen[key]) continue;
+
+                seen[key] = true;
+                queue.Enqueue((nx, ny));
+            }
+        }
+    }
+
+    private void RememberMask()
+    {
+        _undo.Add((true, _mask.Snapshot()));
+        if (_undo.Count > UndoDepth) _undo.RemoveAt(0);
+
+        _redo.Clear();
+        RaiseHistory();
     }
 
     private void Edit(Action<PccSheet> change)
@@ -317,34 +507,36 @@ public sealed class SpriteEditorViewModel : ObservableObject
 
     private void Remember()
     {
-        _undo.Add(_sheet.Snapshot());
+        _undo.Add((false, _sheet.Snapshot()));
         if (_undo.Count > UndoDepth) _undo.RemoveAt(0);
 
         _redo.Clear();
         RaiseHistory();
     }
 
-    private void Undo()
-    {
-        if (_undo.Count == 0) return;
+    private void Undo() => Step(_undo, _redo);
 
-        _redo.Add(_sheet.Snapshot());
-        _sheet.Restore(_undo[^1]);
-        _undo.RemoveAt(_undo.Count - 1);
+    private void Redo() => Step(_redo, _undo);
+
+    /// <summary>
+    /// Moves one step between the two stacks, putting the current state on the other.
+    /// Each step knows whether it is a painting or a marking, so undoing one never
+    /// tries to restore it over the other.
+    /// </summary>
+    private void Step(List<(bool Mask, byte[] Data)> from, List<(bool Mask, byte[] Data)> to)
+    {
+        if (from.Count == 0) return;
+
+        var (isMask, data) = from[^1];
+        from.RemoveAt(from.Count - 1);
+
+        to.Add(isMask ? (true, _mask.Snapshot()) : (false, _sheet.Snapshot()));
+
+        if (isMask) _mask.Restore(data);
+        else _sheet.Restore(data);
 
         RaiseHistory();
-        Redraw();
-    }
-
-    private void Redo()
-    {
-        if (_redo.Count == 0) return;
-
-        _undo.Add(_sheet.Snapshot());
-        _sheet.Restore(_redo[^1]);
-        _redo.RemoveAt(_redo.Count - 1);
-
-        RaiseHistory();
+        OnPropertyChanged(nameof(MarkedCount));
         Redraw();
     }
 
@@ -375,11 +567,26 @@ public sealed class SpriteEditorViewModel : ObservableObject
         var height = ch * zoom;
         var pixels = new byte[width * height * 4];
 
+        // While marking, the cell is shown drained to grey with the dyeable pixels in
+        // red - the point being to see the choice, not the artwork.
+        var source = Marking ? PccFlatten.Preview(_sheet, _mask, Direction, Frame) : null;
+
         for (var y = 0; y < height; y++)
         for (var x = 0; x < width; x++)
         {
-            var pixel = _sheet.Get(Direction, Frame, x / zoom, y / zoom);
             var i = (y * width + x) * 4;
+
+            (byte B, byte G, byte R, byte A) pixel;
+
+            if (source is not null)
+            {
+                var j = (y / zoom * source.Width + x / zoom) * 4;
+                pixel = (source.Bgra[j], source.Bgra[j + 1], source.Bgra[j + 2], source.Bgra[j + 3]);
+            }
+            else
+            {
+                pixel = _sheet.Get(Direction, Frame, x / zoom, y / zoom);
+            }
 
             pixels[i] = pixel.B;
             pixels[i + 1] = pixel.G;
@@ -431,7 +638,11 @@ public sealed class SpriteEditorViewModel : ObservableObject
 
         try
         {
-            var path = PccPartWriter.Save(_app.Paths, _sheet, Source.Layer, SaveId);
+            // Marked pixels go to grey so the character's colour comes through them;
+            // the rest keep what they were painted.
+            var flattened = PccSheet.From(PccFlatten.Apply(_sheet, _mask)) ?? _sheet;
+
+            var path = PccPartWriter.Save(_app.Paths, flattened, Source.Layer, SaveId);
 
             Status = $"Saved as {System.IO.Path.GetFileName(path)}.";
             Finished?.Invoke(path);
