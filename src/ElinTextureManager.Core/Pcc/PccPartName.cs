@@ -48,15 +48,18 @@ public static class PccPartName
     }
 
     /// <summary>
-    /// A name that is not already taken, by adding a number. Copying a part called
-    /// "cme50" gives "cme50copy", then "cme50copy2".
+    /// A name that is not already taken, by adding a number.
+    ///
+    /// Copying a part called "cme50" gives "cme50copy", then "cme50copy2". A sprite
+    /// started from nothing passes no suffix, because calling it a copy of something
+    /// that does not exist is a small lie the file name then carries forever.
     /// </summary>
-    public static string Available(string id, Func<string, bool> taken)
+    public static string Available(string id, Func<string, bool> taken, string suffix = "copy")
     {
         var baseName = id.Replace("_", string.Empty).Replace(".", string.Empty);
         if (baseName.Length == 0) baseName = "mine";
 
-        var candidate = baseName + "copy";
+        var candidate = baseName + suffix;
         if (!taken(candidate)) return candidate;
 
         for (var n = 2; n < 500; n++)

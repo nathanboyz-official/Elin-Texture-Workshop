@@ -264,6 +264,7 @@ public sealed class DressUpViewModel : ObservableObject
         PickFromScreenCommand = new AsyncRelayCommand(PickFromScreen);
         SaveColourCommand = new RelayCommand(_ => SaveColour(), _ => SlotColour is not null);
         ForgetColourCommand = new RelayCommand(p => ForgetColour(p as DyeViewModel));
+        NewSpriteCommand = new RelayCommand(_ => NewSprite(), _ => SelectedSlot is not null);
         EditPartCommand = new RelayCommand(p => EditPart(p as PccPartViewModel),
             p => p is PccPartViewModel { IsNone: false });
         ToggleFavouriteCommand = new RelayCommand(p => ToggleFavourite(p as PccPartViewModel));
@@ -320,6 +321,7 @@ public sealed class DressUpViewModel : ObservableObject
     public AsyncRelayCommand PickFromScreenCommand { get; }
     public RelayCommand SaveColourCommand { get; }
     public RelayCommand ForgetColourCommand { get; }
+    public RelayCommand NewSpriteCommand { get; }
     public RelayCommand EditPartCommand { get; }
     public RelayCommand ToggleFavouriteCommand { get; }
     public RelayCommand DeletePartCommand { get; }
@@ -335,8 +337,19 @@ public sealed class DressUpViewModel : ObservableObject
     public DressUpSlotViewModel? SelectedSlot
     {
         get => _selectedSlot;
-        private set { SetProperty(ref _selectedSlot, value); OnPropertyChanged(nameof(PartsTitle)); }
+        private set
+        {
+            SetProperty(ref _selectedSlot, value);
+            OnPropertyChanged(nameof(PartsTitle));
+            OnPropertyChanged(nameof(NewSpriteLabel));
+            NewSpriteCommand.RaiseCanExecuteChanged();
+        }
     }
+
+    /// <summary>Names the kind the New button will make, so it is never a guess.</summary>
+    public string NewSpriteLabel => _selectedSlot is null
+        ? "New sprite"
+        : $"New {_selectedSlot.Label.ToLowerInvariant()} sprite";
 
     public string PartsTitle => _selectedSlot is null
         ? "PICK A SLOT"
@@ -787,9 +800,26 @@ public sealed class DressUpViewModel : ObservableObject
     /// Opens the sprite editor on a copy of a part, with the character being built shown
     /// behind it so the drawing is done in place rather than in the abstract.
     /// </summary>
+    /// <summary>
+    /// Starts a sprite from nothing, for the slot being looked at.
+    ///
+    /// The slot rail is already the answer to "what kind": a new Hair is made while
+    /// looking at Hair. The character behind is still drawn, so a first stroke lands
+    /// against the head it has to sit on rather than in an empty square.
+    /// </summary>
+    private void NewSprite()
+    {
+        if (SelectedSlot is not { } slot || _app.Paths is null) return;
+
+        var blank = new PccFile(slot.Layer, PccSlots.DefaultSet, string.Empty, string.Empty, "new");
+
+        OpenEditor(blank, PccSheet.Blank(), slot, suggestedName: $"my{slot.Layer}");
+    }
+
     private void EditPart(PccPartViewModel? part)
     {
         if (part is null or { IsNone: true } || _app.Paths is null) return;
+        if (SelectedSlot is not { } editing) return;
 
         var decoded = PixelDecoder.Decode(part.Part.FullPath);
         if (decoded is null || PccSheet.From(decoded) is not { } sheet)
@@ -798,6 +828,17 @@ public sealed class DressUpViewModel : ObservableObject
             return;
         }
 
+        OpenEditor(part.Part, sheet, editing, suggestedName: part.Part.Id);
+    }
+
+    /// <summary>Opens the editor and takes in whatever it saves.</summary>
+    private void OpenEditor(PccFile source, PccSheet sheet, DressUpSlotViewModel slot,
+        string suggestedName)
+    {
+        if (_app.Paths is null) return;
+
+        var part = source;
+
         // What the character is actually wearing, so the editor can offer to take any of
         // it off - a hat sitting over the hair being drawn is worse than no reference.
         var worn = PccSlots.All
@@ -805,11 +846,12 @@ public sealed class DressUpViewModel : ObservableObject
             .Select(s => (s.Layer, s.Label))
             .ToList();
 
-        var editor = new SpriteEditorViewModel(_app, part.Part, sheet, Preview,
-            id => _library.Resolve(part.Layer, new PccChoice { Set = part.Part.Set, Id = id }) is not null
-                  || PccPartWriter.Exists(_app.Paths, part.Part.Set, part.Layer, id),
+        var editor = new SpriteEditorViewModel(_app, part, sheet, Preview,
+            id => _library.Resolve(part.Layer, new PccChoice { Set = part.Set, Id = id }) is not null
+                  || PccPartWriter.Exists(_app.Paths, part.Set, part.Layer, id),
             (direction, frame, hidden) => ComposeAsync(direction, frame, scale: 10, hidden),
-            worn);
+            worn,
+            suggestedName);
 
         var window = new Views.SpriteEditorWindow(editor)
         {
@@ -821,15 +863,12 @@ public sealed class DressUpViewModel : ObservableObject
         // The new part is on disk but not in the index, so bring it in and wear it right
         // away - saving a sprite and then hunting for it would be a poor reward.
         var id = editor.SaveId.Trim();
-        var path = PccPartWriter.PathFor(_app.Paths, part.Part.Set, part.Layer, id);
+        var path = PccPartWriter.PathFor(_app.Paths, part.Set, part.Layer, id);
 
-        _library.Add(part.Layer, part.Part.Set, id, path, "Made here", isMine: true);
+        _library.Add(part.Layer, part.Set, id, path, "Made here", isMine: true);
 
-        if (SelectedSlot is { } slot)
-        {
-            SelectSlot(slot);
-            Choose(Parts.FirstOrDefault(p => !p.IsNone && p.Id == id));
-        }
+        SelectSlot(slot);
+        Choose(Parts.Concat(Creations).FirstOrDefault(p => !p.IsNone && p.Id == id));
 
         StatusMessage = $"Saved {System.IO.Path.GetFileName(path)} and put it on. "
                         + "It is in your override package, so the game will load it too.";

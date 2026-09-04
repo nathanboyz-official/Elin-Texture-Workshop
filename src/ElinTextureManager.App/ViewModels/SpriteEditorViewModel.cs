@@ -124,7 +124,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
     public SpriteEditorViewModel(AppServices app, PccFile source, PccSheet sheet,
         BitmapSource? character, Func<string, bool> nameTaken,
         Func<int, int, IReadOnlySet<string>, Task<BitmapSource?>>? renderCharacter = null,
-        IReadOnlyList<(string Layer, string Label)>? worn = null)
+        IReadOnlyList<(string Layer, string Label)>? worn = null,
+        string? suggestedName = null)
     {
         _app = app;
         Source = source;
@@ -133,7 +134,10 @@ public sealed class SpriteEditorViewModel : ObservableObject
         _mask = new PccDyeMask(sheet.Width, sheet.Height);
         _renderCharacter = renderCharacter;
 
-        SaveId = PccPartName.Available(source.Id, nameTaken);
+        // A blank sprite has no source to copy a name from, so it gets one from its slot.
+        IsNew = string.IsNullOrEmpty(source.Id);
+        SaveId = PccPartName.Available(suggestedName ?? source.Id, nameTaken,
+            suffix: IsNew ? string.Empty : "copy");
 
         foreach (var (layer, label) in worn ?? Array.Empty<(string, string)>())
         {
@@ -205,6 +209,23 @@ public sealed class SpriteEditorViewModel : ObservableObject
     }
 
     public PccFile Source { get; }
+
+    /// <summary>Started from nothing rather than from an existing part.</summary>
+    public bool IsNew { get; }
+
+    /// <summary>
+    /// What the window says it is doing. A new sprite has no original to reassure
+    /// anyone about, and saying "editing a copy of" with nothing after it would be worse
+    /// than saying nothing.
+    /// </summary>
+    public string Subtitle => IsNew
+        ? $"A new {SlotLabel.ToLowerInvariant()}, from nothing. The character behind is "
+          + "there to draw against."
+        : $"Editing a copy of {Source.Id} from {Source.ModName} - the original is never touched.";
+
+    public string SlotLabel => PccSlots.For(Source.Layer)?.Label ?? Source.Layer;
+
+    public string Title => IsNew ? $"New {SlotLabel.ToLowerInvariant()} sprite" : "Edit sprite";
 
     /// <summary>
     /// The colours this sprite already uses, most-used first.

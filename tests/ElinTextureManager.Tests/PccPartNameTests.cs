@@ -69,6 +69,15 @@ public sealed class PccPartNameTests
     }
 
     [Fact]
+    public void A_sprite_started_from_nothing_is_not_called_a_copy()
+    {
+        // Nothing was copied, and the file name would carry that small lie forever.
+        Assert.Equal("mycloth", PccPartName.Available("mycloth", _ => false, suffix: ""));
+        Assert.Equal("mycloth2",
+            PccPartName.Available("mycloth", n => n == "mycloth", suffix: ""));
+    }
+
+    [Fact]
     public void A_copy_of_a_part_whose_name_breaks_the_rule_gets_a_name_that_does_not()
     {
         // The library contains parts with underscores and dots in their ids already;

@@ -6,7 +6,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:SpriteEditorViewModel}"
-        Title="Edit sprite" Width="980" Height="820"
+        Title="{Binding Title}" Width="980" Height="820"
         KeyDown="OnKeyDown" KeyUp="OnKeyUp"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BackgroundBrush}"
@@ -58,15 +58,9 @@
 
         <!-- === HEADER === -->
         <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,10">
-            <TextBlock Text="Edit sprite" Style="{StaticResource PageTitle}" />
-            <TextBlock Style="{StaticResource SubtleText}" Margin="0,3,0,0">
-                <Run Text="Editing a copy of" />
-                <Run Text="{Binding Source.Id, Mode=OneWay}"
-                     Foreground="{StaticResource GoldBrush}" />
-                <Run Text="from" />
-                <Run Text="{Binding Source.ModName, Mode=OneWay}" />
-                <Run Text="- the original is never touched." />
-            </TextBlock>
+            <TextBlock Text="{Binding Title}" Style="{StaticResource PageTitle}" />
+            <TextBlock Text="{Binding Subtitle}" Style="{StaticResource SubtleText}"
+                       Margin="0,3,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
         <!-- === TOOLS === -->
