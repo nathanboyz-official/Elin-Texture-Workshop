@@ -66,8 +66,20 @@ public sealed class EnumMatchConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value?.ToString() == parameter?.ToString();
 
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is true && parameter is not null
-            ? Enum.Parse(targetType, parameter.ToString()!)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not true || parameter is null) return Binding.DoNothing;
+
+        var text = parameter.ToString()!;
+
+        // Also used for plain numbers - the sprite editor picks a facing and a frame,
+        // which are ints rather than an enum. Parsing those as an enum would throw.
+        var type = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        if (type.IsEnum) return Enum.Parse(type, text);
+
+        return type == typeof(int) && int.TryParse(text, out var number)
+            ? number
             : Binding.DoNothing;
+    }
 }

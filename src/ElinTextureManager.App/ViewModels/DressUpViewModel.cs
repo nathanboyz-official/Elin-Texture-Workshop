@@ -251,6 +251,8 @@ public sealed class DressUpViewModel : ObservableObject
         PickFromScreenCommand = new AsyncRelayCommand(PickFromScreen);
         SaveColourCommand = new RelayCommand(_ => SaveColour(), _ => SlotColour is not null);
         ForgetColourCommand = new RelayCommand(p => ForgetColour(p as DyeViewModel));
+        EditPartCommand = new RelayCommand(p => EditPart(p as PccPartViewModel),
+            p => p is PccPartViewModel { IsNone: false });
         NewCharacterCommand = new RelayCommand(_ => NewCharacter());
         LoadStyleCommand = new RelayCommand(p => Load(p as SavedStyleViewModel));
         SaveCommand = new RelayCommand(_ => Save(), _ => CanSave);
@@ -297,6 +299,7 @@ public sealed class DressUpViewModel : ObservableObject
     public AsyncRelayCommand PickFromScreenCommand { get; }
     public RelayCommand SaveColourCommand { get; }
     public RelayCommand ForgetColourCommand { get; }
+    public RelayCommand EditPartCommand { get; }
     public RelayCommand NewCharacterCommand { get; }
     public RelayCommand LoadStyleCommand { get; }
     public RelayCommand SaveCommand { get; }
@@ -720,6 +723,49 @@ public sealed class DressUpViewModel : ObservableObject
         _app.SaveSettings();
         RefreshSavedDyes();
         StatusMessage = $"Removed #{hex} from your saved colours.";
+    }
+
+    /// <summary>
+    /// Opens the sprite editor on a copy of a part, with the character being built shown
+    /// behind it so the drawing is done in place rather than in the abstract.
+    /// </summary>
+    private void EditPart(PccPartViewModel? part)
+    {
+        if (part is null or { IsNone: true } || _app.Paths is null) return;
+
+        var decoded = PixelDecoder.Decode(part.Part.FullPath);
+        if (decoded is null || PccSheet.From(decoded) is not { } sheet)
+        {
+            StatusMessage = $"{part.Id} is not laid out as a sheet, so it cannot be edited here.";
+            return;
+        }
+
+        var editor = new SpriteEditorViewModel(_app, part.Part, sheet, Preview,
+            id => _library.Resolve(part.Layer, new PccChoice { Set = part.Part.Set, Id = id }) is not null
+                  || PccPartWriter.Exists(_app.Paths, part.Part.Set, part.Layer, id));
+
+        var window = new Views.SpriteEditorWindow(editor)
+        {
+            Owner = System.Windows.Application.Current.MainWindow,
+        };
+
+        if (window.ShowDialog() != true) return;
+
+        // The new part is on disk but not in the index, so bring it in and wear it right
+        // away - saving a sprite and then hunting for it would be a poor reward.
+        var id = editor.SaveId.Trim();
+        var path = PccPartWriter.PathFor(_app.Paths, part.Part.Set, part.Layer, id);
+
+        _library.Add(part.Layer, part.Part.Set, id, path, "Made here");
+
+        if (SelectedSlot is { } slot)
+        {
+            SelectSlot(slot);
+            Choose(Parts.FirstOrDefault(p => !p.IsNone && p.Id == id));
+        }
+
+        StatusMessage = $"Saved {System.IO.Path.GetFileName(path)} and put it on. "
+                        + "It is in your override package, so the game will load it too.";
     }
 
     private void RefreshSavedDyes()

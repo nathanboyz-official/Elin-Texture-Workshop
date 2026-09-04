@@ -1,0 +1,337 @@
+<Window x:Class="ElinTextureManager.App.Views.SpriteEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:SpriteEditorViewModel}"
+        Title="Edit sprite" Width="920" Height="790"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}"
+        TextElement.Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="{StaticResource UiFont}">
+
+    <Window.Resources>
+        <Style x:Key="ToolChip" TargetType="RadioButton">
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Shell" Padding="10,5"
+                                CornerRadius="{StaticResource RadiusControl}"
+                                Background="{StaticResource SurfaceSunkenBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Shell" Property="BorderBrush"
+                                        Value="{StaticResource BorderStrongBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Shell" Property="BorderBrush"
+                                        Value="{StaticResource GoldBrush}" />
+                                <Setter TargetName="Shell" Property="Background"
+                                        Value="{StaticResource GoldToneBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="256" />
+        </Grid.ColumnDefinitions>
+
+        <!-- === HEADER === -->
+        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,10">
+            <TextBlock Text="Edit sprite" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource SubtleText}" Margin="0,3,0,0">
+                <Run Text="Editing a copy of" />
+                <Run Text="{Binding Source.Id, Mode=OneWay}"
+                     Foreground="{StaticResource GoldBrush}" />
+                <Run Text="from" />
+                <Run Text="{Binding Source.ModName, Mode=OneWay}" />
+                <Run Text="- the original is never touched." />
+            </TextBlock>
+        </StackPanel>
+
+        <!-- === TOOLS === -->
+        <WrapPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,10">
+            <RadioButton Content="Pencil" Style="{StaticResource ToolChip}" GroupName="Tool"
+                         IsChecked="{Binding IsPencil, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="Pencil" />
+            <RadioButton Content="Eraser" Style="{StaticResource ToolChip}" GroupName="Tool"
+                         IsChecked="{Binding IsEraser, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="Eraser" />
+            <RadioButton Content="Fill" Style="{StaticResource ToolChip}" GroupName="Tool"
+                         IsChecked="{Binding IsFill, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="Fill" />
+            <RadioButton Content="Dropper" Style="{StaticResource ToolChip}" GroupName="Tool"
+                         IsChecked="{Binding IsDropper, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="Dropper" />
+
+            <TextBlock Text="NIB" Style="{StaticResource SectionHeader}"
+                       VerticalAlignment="Center" Margin="12,0,6,0" />
+            <Slider Width="70" Minimum="1" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True"
+                    VerticalAlignment="Center" Value="{Binding Nib}" />
+
+            <Button Content="Undo" Style="{StaticResource SubtleButton}" Margin="12,0,4,0"
+                    Padding="8,3" Command="{Binding UndoCommand}" />
+            <Button Content="Redo" Style="{StaticResource SubtleButton}" Padding="8,3"
+                    Command="{Binding RedoCommand}" />
+        </WrapPanel>
+
+        <!-- === CANVAS === -->
+        <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource Card}" Padding="12"
+                Margin="0,0,12,0">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <Grid x:Name="CanvasHost" HorizontalAlignment="Center" VerticalAlignment="Center"
+                      Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}"
+                      Background="{StaticResource CheckerboardBrush}"
+                      MouseLeftButtonDown="OnCanvasDown"
+                      MouseMove="OnCanvasMove"
+                      MouseLeftButtonUp="OnCanvasUp">
+
+                    <!-- The character being built, behind the cell, so the part is drawn
+                         in place rather than in the abstract. -->
+                    <Image Source="{Binding Character}" Stretch="Uniform"
+                           Opacity="{Binding CharacterVisible}"
+                           IsHitTestVisible="False"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+
+                    <Image Source="{Binding Canvas}" Stretch="None"
+                           IsHitTestVisible="False"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                </Grid>
+            </ScrollViewer>
+        </Border>
+
+        <!-- === SIDE PANEL === -->
+        <ScrollViewer Grid.Row="2" Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Style="{StaticResource Card}" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="WHICH CELL" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Text="{Binding CellName}" Style="{StaticResource MonoText}"
+                                   Margin="0,5,0,8" />
+
+                        <TextBlock Text="Facing" Style="{StaticResource SubtleText}" Margin="0,0,0,4" />
+                        <!-- Two by two: at four across the labels were clipped to "Fron"
+                             and "Righ", which is worse than a second row. -->
+                        <UniformGrid Columns="2">
+                            <RadioButton Content="Front" GroupName="Dir" FontSize="11" Margin="0,0,3,0"
+                                         IsChecked="{Binding Direction, Converter={StaticResource EnumMatch},
+                                                    ConverterParameter=0, Mode=TwoWay}" />
+                            <RadioButton Content="Left" GroupName="Dir" FontSize="11" Margin="0,0,3,0"
+                                         IsChecked="{Binding Direction, Converter={StaticResource EnumMatch},
+                                                    ConverterParameter=1, Mode=TwoWay}" />
+                            <RadioButton Content="Right" GroupName="Dir" FontSize="11" Margin="0,4,3,0"
+                                         IsChecked="{Binding Direction, Converter={StaticResource EnumMatch},
+                                                    ConverterParameter=2, Mode=TwoWay}" />
+                            <RadioButton Content="Back" GroupName="Dir" FontSize="11" Margin="0,4,0,0"
+                                         IsChecked="{Binding Direction, Converter={StaticResource EnumMatch},
+                                                    ConverterParameter=3, Mode=TwoWay}" />
+                        </UniformGrid>
+
+                        <TextBlock Text="Frame" Style="{StaticResource SubtleText}" Margin="0,10,0,4" />
+                        <UniformGrid Columns="4">
+                            <RadioButton Content="1" GroupName="Frame" FontSize="11" Margin="0,0,3,0"
+                                         IsChecked="{Binding Frame, Converter={StaticResource EnumMatch},
+                                                    ConverterParameter=0, Mode=TwoWay}" />
+                            <RadioButton Content="2" GroupName="Frame" FontSize="11" Margin="0,0,3,0"
+                                         IsChecked="{Binding Frame, Converter={StaticResource EnumMatch},
+                                                    ConverterParameter=1, Mode=TwoWay}" />
+                            <RadioButton Content="3" GroupName="Frame" FontSize="11" Margin="0,0,3,0"
+                                         IsChecked="{Binding Frame, Converter={StaticResource EnumMatch},
+                                                    ConverterParameter=2, Mode=TwoWay}" />
+                            <RadioButton Content="4" GroupName="Frame" FontSize="11"
+                                         IsChecked="{Binding Frame, Converter={StaticResource EnumMatch},
+                                                    ConverterParameter=3, Mode=TwoWay}" />
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- === COLOUR === -->
+                <Border Style="{StaticResource Card}" Padding="12" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="COLOUR" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,5,0,8"
+                                   Text="Greys first, because the game dyes these parts as it draws them - a part drawn in colour cannot be recoloured in game." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Border Width="34" Height="24" CornerRadius="3" Margin="0,0,8,0"
+                                    Background="{Binding ColourBrush}"
+                                    BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1" />
+                            <TextBox Width="76" Padding="5,3" FontFamily="Consolas" FontSize="11"
+                                     Text="{Binding Colour, UpdateSourceTrigger=LostFocus}"
+                                     Background="{StaticResource SurfaceSunkenBrush}"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     BorderBrush="{StaticResource BorderBrush}" />
+                            <Button Content="Pick" Style="{StaticResource SubtleButton}"
+                                    Padding="7,2" FontSize="10.5" Margin="6,0,0,0"
+                                    ToolTip="Take a colour from anywhere on screen"
+                                    Command="{Binding PickFromScreenCommand}" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding Greys}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Width="22" Height="22" Margin="0,0,4,4" Padding="0"
+                                            ToolTip="{Binding Label}"
+                                            Command="{Binding DataContext.ChooseColourCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border CornerRadius="3" Background="{Binding Swatch}"
+                                                        BorderBrush="{StaticResource BorderStrongBrush}"
+                                                        BorderThickness="1" />
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ItemsControl ItemsSource="{Binding Saved}" Margin="0,4,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Width="22" Height="22" Margin="0,0,4,4" Padding="0"
+                                            ToolTip="{Binding Label}"
+                                            Command="{Binding DataContext.ChooseColourCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border CornerRadius="3" Background="{Binding Swatch}"
+                                                        BorderBrush="{StaticResource GoldDimBrush}"
+                                                        BorderThickness="1" />
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- === THIS CELL === -->
+                <Border Style="{StaticResource Card}" Padding="12" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="THIS CELL" Style="{StaticResource SectionHeader}" />
+
+                        <UniformGrid Columns="4" Margin="0,8,0,0">
+                            <Button Content="&#x2190;" Style="{StaticResource SubtleButton}" Margin="0,0,3,0"
+                                    ToolTip="Nudge left"
+                                    Command="{Binding NudgeCommand}" CommandParameter="left" />
+                            <Button Content="&#x2192;" Style="{StaticResource SubtleButton}" Margin="0,0,3,0"
+                                    ToolTip="Nudge right"
+                                    Command="{Binding NudgeCommand}" CommandParameter="right" />
+                            <Button Content="&#x2191;" Style="{StaticResource SubtleButton}" Margin="0,0,3,0"
+                                    ToolTip="Nudge up"
+                                    Command="{Binding NudgeCommand}" CommandParameter="up" />
+                            <Button Content="&#x2193;" Style="{StaticResource SubtleButton}"
+                                    ToolTip="Nudge down"
+                                    Command="{Binding NudgeCommand}" CommandParameter="down" />
+                        </UniformGrid>
+
+                        <Button Content="Mirror" Style="{StaticResource SubtleButton}"
+                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                ToolTip="Flip this cell left to right"
+                                Command="{Binding MirrorCommand}" />
+                        <Button Content="Copy the previous frame in" Style="{StaticResource SubtleButton}"
+                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                Command="{Binding CopyFromCommand}" CommandParameter="previousFrame" />
+                        <Button Content="Copy the front view in" Style="{StaticResource SubtleButton}"
+                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                Command="{Binding CopyFromCommand}" CommandParameter="front" />
+                        <Button Content="Clear this cell" Style="{StaticResource SubtleButton}"
+                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                Command="{Binding ClearCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- === VIEW === -->
+                <Border Style="{StaticResource Card}" Padding="12" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="VIEW" Style="{StaticResource SectionHeader}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="&#x2212;" Style="{StaticResource SubtleButton}" Width="34"
+                                    Command="{Binding ZoomCommand}" CommandParameter="-2" />
+                            <TextBlock Text="{Binding Zoom, StringFormat={}{0}x}" Width="40"
+                                       TextAlignment="Center" VerticalAlignment="Center"
+                                       Style="{StaticResource MonoText}" />
+                            <Button Content="+" Style="{StaticResource SubtleButton}" Width="34"
+                                    Command="{Binding ZoomCommand}" CommandParameter="2" />
+                        </StackPanel>
+
+                        <CheckBox Content="Pixel grid" Margin="0,10,0,0" IsChecked="{Binding ShowGrid}" />
+                        <CheckBox Content="Character behind" Margin="0,8,0,0"
+                                  IsChecked="{Binding ShowCharacter}" />
+                        <Slider Minimum="0.1" Maximum="1" Margin="0,6,0,0"
+                                Value="{Binding CharacterOpacity}"
+                                IsEnabled="{Binding ShowCharacter}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- === SAVE === -->
+        <Border Grid.Row="3" Grid.ColumnSpan="2" Style="{StaticResource Card}" Padding="12"
+                Margin="0,12,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="SAVE AS" Style="{StaticResource SectionHeader}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding Source.Layer, StringFormat=pcc_{0}_}"
+                                   Style="{StaticResource MonoText}" VerticalAlignment="Center" />
+                        <TextBox Width="150" Padding="6,3" Margin="2,0,0,0" FontFamily="Consolas"
+                                 Text="{Binding SaveId, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{StaticResource SurfaceSunkenBrush}"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 BorderBrush="{StaticResource BorderBrush}" />
+                        <TextBlock Text=".png" Style="{StaticResource MonoText}"
+                                   VerticalAlignment="Center" Margin="2,0,0,0" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding SaveProblem}" TextWrapping="Wrap" Margin="0,7,0,0"
+                               FontSize="11.5" Foreground="{StaticResource DangerBrush}" />
+                    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}"
+                               Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Cancel" Style="{StaticResource SubtleButton}" Margin="0,0,6,0"
+                            Click="OnCancel" />
+                    <Button Content="Save as a new part" Style="{StaticResource PrimaryButton}"
+                            IsEnabled="{Binding CanSave}" Click="OnSave" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

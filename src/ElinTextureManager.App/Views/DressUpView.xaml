@@ -215,12 +215,17 @@
                                             Command="{Binding DataContext.ChooseDyeCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}">
+                                        <Button.Tag>
+                                            <Binding Path="DataContext"
+                                                     RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                        </Button.Tag>
                                         <Button.ContextMenu>
                                             <ContextMenu>
                                                 <MenuItem Header="Remove this saved colour"
-                                                          Command="{Binding PlacementTarget.DataContext.ForgetColourCommand,
+                                                          Command="{Binding PlacementTarget.Tag.ForgetColourCommand,
                                                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                          CommandParameter="{Binding}" />
+                                                          CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                         <Button.Template>
@@ -293,6 +298,21 @@
                                         Command="{Binding DataContext.ChoosePartCommand,
                                                   RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}">
+                                    <!-- The menu's own DataContext is the part, so the
+                                         page's commands are reached through Tag. -->
+                                    <Button.Tag>
+                                        <Binding Path="DataContext"
+                                                 RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                    </Button.Tag>
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Edit a copy of this sprite..."
+                                                      Command="{Binding PlacementTarget.Tag.EditPartCommand,
+                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
                                     <StackPanel>
                                         <Grid Height="144">
                                             <Border Background="{StaticResource CheckerboardBrush}"
