@@ -1,10 +1,18 @@
 namespace ElinTextureManager.Core.Pcc;
 
-/// <summary>One installed PCC file, addressed the way a style addresses it.</summary>
-public sealed record PccPart(string Layer, string Set, string Id, string FullPath, string ModName)
+/// <summary>
+/// One installed PCC file, addressed the way a style addresses it.
+///
+/// Named for the file rather than the part because Model.PccPart already means the
+/// layer a file belongs to, and the two would otherwise read as the same thing.
+/// </summary>
+public sealed record PccFile(string Layer, string Set, string Id, string FullPath, string ModName)
 {
     /// <summary>True when this part also has a rear-facing piece to bring with it.</summary>
     public bool HasBack { get; init; }
+
+    /// <summary>From the base game rather than a mod, which is what a default should be.</summary>
+    public bool IsVanilla { get; init; }
 }
 
 /// <summary>
@@ -18,18 +26,19 @@ public sealed record PccPart(string Layer, string Set, string Id, string FullPat
 /// </summary>
 public sealed class PccLibrary
 {
-    private readonly Dictionary<string, PccPart> _byKey = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, List<PccPart>> _byLayer = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, PccFile> _byKey = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<PccFile>> _byLayer = new(StringComparer.OrdinalIgnoreCase);
 
     public int Count => _byKey.Count;
 
-    public IReadOnlyList<PccPart> InLayer(string layer) =>
-        _byLayer.TryGetValue(layer, out var list) ? list : Array.Empty<PccPart>();
+    public IReadOnlyList<PccFile> InLayer(string layer) =>
+        _byLayer.TryGetValue(layer, out var list) ? list : Array.Empty<PccFile>();
 
     /// <summary>Adds a file. The set is the folder under Actor/PCC that holds it.</summary>
-    public void Add(string layer, string set, string id, string fullPath, string modName)
+    public void Add(string layer, string set, string id, string fullPath, string modName,
+        bool isVanilla = false)
     {
-        var part = new PccPart(layer, set, id, fullPath, modName);
+        var part = new PccFile(layer, set, id, fullPath, modName) { IsVanilla = isVanilla };
 
         // First one wins, matching the load order the caller feeds them in.
         if (!_byKey.TryAdd(Key(layer, set, id), part)) return;
@@ -45,7 +54,7 @@ public sealed class PccLibrary
     /// still names a real part when a mod installed it somewhere else - and showing the
     /// part the user meant beats showing a gap.
     /// </summary>
-    public PccPart? Resolve(string layer, PccChoice choice)
+    public PccFile? Resolve(string layer, PccChoice choice)
     {
         if (_byKey.TryGetValue(Key(layer, choice.Set, choice.FileId), out var exact)) return exact;
 
@@ -61,10 +70,10 @@ public sealed class PccLibrary
     /// The parts a style actually draws, in draw order, with their colours attached.
     /// Anything the style names that is not installed is skipped and reported.
     /// </summary>
-    public (List<(string Layer, PccPart Part, PccChoice Choice)> Found, List<string> Missing)
+    public (List<(string Layer, PccFile Part, PccChoice Choice)> Found, List<string> Missing)
         ResolveStyle(PccStyle style)
     {
-        var found = new List<(string, PccPart, PccChoice)>();
+        var found = new List<(string, PccFile, PccChoice)>();
         var missing = new List<string>();
 
         foreach (var (layer, choice) in style.Drawable())
@@ -79,10 +88,16 @@ public sealed class PccLibrary
         return (found, missing);
     }
 
-    /// <summary>A body, so a new character is never an empty canvas.</summary>
-    public PccPart? DefaultBody() =>
+    /// <summary>
+    /// A body, so a new character is never an empty canvas.
+    ///
+    /// The base game's own first body, in preference to a mod's. A default should be the
+    /// thing everyone has, not whichever mod happened to be indexed first.
+    /// </summary>
+    public PccFile? DefaultBody() =>
         InLayer(PccSlots.BodyLayer)
-            .OrderBy(p => p.Set != PccSlots.DefaultSet)
+            .Where(p => string.Equals(p.Set, PccSlots.DefaultSet, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(p => p.IsVanilla)
             .ThenBy(p => p.Id.Length)
             .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();

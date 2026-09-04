@@ -7,65 +7,90 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:DressUpViewModel}">
 
+    <UserControl.Resources>
+        <!-- A row in the slot rail or a tile in the parts grid: flat until it is the
+             chosen one, then outlined in gold like every other choice in the app. -->
+        <ControlTemplate x:Key="PickTemplate" TargetType="Button">
+            <Border x:Name="Shell" Padding="{TemplateBinding Padding}"
+                    Background="{StaticResource SurfaceSunkenBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource RadiusControl}">
+                <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Shell" Property="BorderBrush"
+                            Value="{StaticResource BorderStrongBrush}" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                    <Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource GoldBrush}" />
+                    <Setter TargetName="Shell" Property="Background" Value="{StaticResource GoldToneBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasChoice}" Value="True">
+                    <Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource GoldDimBrush}" />
+                </DataTrigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+    </UserControl.Resources>
+
     <Grid Margin="24,20,24,20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="230" />
+            <ColumnDefinition Width="218" />
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="264" />
+            <ColumnDefinition Width="286" />
         </Grid.ColumnDefinitions>
 
         <!-- === HEADER === -->
-        <Grid Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,14">
+        <Grid Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,12">
             <StackPanel>
-                <TextBlock Text="Dress Up" Style="{StaticResource PageTitle}" />
+                <TextBlock Text="Character Creator" Style="{StaticResource PageTitle}" />
                 <TextBlock Style="{StaticResource SubtleText}" Margin="0,4,0,0" TextWrapping="Wrap"
                            MaxWidth="820" HorizontalAlignment="Left"
-                           Text="PCC parts are greyscale sheets of sixteen tiny poses that Elin tints while it draws, so one on its own tells you nothing. Stack them the way the game does and you can see what a hairstyle or a coat actually looks like - and which mod it came from." />
+                           Text="The same slots, in the same order, with the same names Elin uses. Build a character here and save it where the game's own Edit Appearance screen will find it." />
             </StackPanel>
             <TextBlock Text="{Binding ScopeText}" Style="{StaticResource MonoText}"
                        HorizontalAlignment="Right" VerticalAlignment="Top" />
         </Grid>
 
-        <!-- === LAYERS === -->
-        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Card}" Padding="10" Margin="0,0,12,0">
+        <Border Grid.Row="1" Grid.ColumnSpan="3" Style="{StaticResource Card}" Padding="12,9"
+                Margin="0,0,0,12"
+                Visibility="{Binding HasStatusMessage, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+        </Border>
+
+        <!-- === SLOTS, IN THE GAME'S ORDER === -->
+        <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource Card}" Padding="9" Margin="0,0,12,0">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Layers}">
+                <ItemsControl ItemsSource="{Binding Slots}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Button HorizontalContentAlignment="Stretch" Margin="0,0,0,3" Padding="0"
-                                    Command="{Binding DataContext.SelectLayerCommand,
+                            <Button Margin="0,0,0,3" Padding="9,6" HorizontalContentAlignment="Stretch"
+                                    Template="{StaticResource PickTemplate}"
+                                    Command="{Binding DataContext.SelectSlotCommand,
                                               RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border x:Name="Shell" Padding="9,6" CornerRadius="{StaticResource RadiusControl}"
-                                                Background="Transparent" BorderThickness="1"
-                                                BorderBrush="Transparent">
-                                            <ContentPresenter />
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Shell" Property="Background"
-                                                        Value="{StaticResource SurfaceHoverBrush}" />
-                                            </Trigger>
-                                            <DataTrigger Binding="{Binding HasChoice}" Value="True">
-                                                <Setter TargetName="Shell" Property="BorderBrush"
-                                                        Value="{StaticResource GoldDimBrush}" />
-                                            </DataTrigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Button.Template>
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Title}" FontSize="12.5"
-                                               Foreground="{StaticResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding ChosenText}" Margin="0,2,0,0"
-                                               TextTrimming="CharacterEllipsis"
-                                               Style="{StaticResource MonoText}" />
-                                </StackPanel>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Label}" FontSize="12.5"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding Detail}" Margin="0,2,0,0"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Style="{StaticResource MonoText}" />
+                                    </StackPanel>
+                                    <Border Width="12" Height="12" CornerRadius="2"
+                                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Background="{Binding Swatch}"
+                                            BorderBrush="{StaticResource BorderStrongBrush}"
+                                            BorderThickness="1"
+                                            Visibility="{Binding HasColour,
+                                                        Converter={StaticResource BoolToVis}}" />
+                                </Grid>
                             </Button>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -73,66 +98,93 @@
             </ScrollViewer>
         </Border>
 
-        <!-- === PARTS FOR THE CHOSEN LAYER === -->
-        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Card}" Padding="12" Margin="0,0,12,0">
+        <!-- === PARTS FOR THE CHOSEN SLOT === -->
+        <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource Card}" Padding="12" Margin="0,0,12,0">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="0,0,0,10">
+                <Grid Grid.Row="0" Margin="0,0,0,9">
                     <TextBlock Text="{Binding PartsTitle}" Style="{StaticResource SectionHeader}"
                                VerticalAlignment="Center" />
                     <Button Content="Use none" Style="{StaticResource SubtleButton}"
                             HorizontalAlignment="Right" Padding="7,2" FontSize="10.5"
-                            Command="{Binding ClearLayerCommand}" />
+                            Command="{Binding ClearSlotCommand}" />
                 </Grid>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <!-- Dye for the chosen slot -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="DYE" Style="{StaticResource SectionHeader}"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ItemsControl ItemsSource="{Binding Dyes}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="20" Height="20" Margin="0,0,4,0" Padding="0"
+                                        Command="{Binding DataContext.ChooseDyeCommand,
+                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Chip" CornerRadius="3"
+                                                    Background="{Binding Swatch}"
+                                                    BorderBrush="{StaticResource BorderStrongBrush}"
+                                                    BorderThickness="1">
+                                                <TextBlock Text="/" FontSize="12" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Visibility="{Binding IsNone,
+                                                                       Converter={StaticResource BoolToVis}}" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Chip" Property="BorderBrush"
+                                                            Value="{StaticResource GoldBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Parts}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Width="104" Margin="0,0,8,8" Padding="0"
+                                <Button Width="100" Margin="0,0,8,8" Padding="0"
                                         HorizontalContentAlignment="Stretch"
+                                        Template="{StaticResource PickTemplate}"
                                         Command="{Binding DataContext.ChoosePartCommand,
                                                   RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="Shell"
-                                                    Background="{StaticResource SurfaceSunkenBrush}"
-                                                    BorderBrush="{StaticResource BorderBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="{StaticResource RadiusControl}">
-                                                <ContentPresenter />
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="Shell" Property="BorderBrush"
-                                                            Value="{StaticResource BorderStrongBrush}" />
-                                                </Trigger>
-                                                <DataTrigger Binding="{Binding IsChosen}" Value="True">
-                                                    <Setter TargetName="Shell" Property="BorderBrush"
-                                                            Value="{StaticResource GoldBrush}" />
-                                                    <Setter TargetName="Shell" Property="Background"
-                                                            Value="{StaticResource GoldToneBrush}" />
-                                                </DataTrigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-
                                     <StackPanel>
-                                        <Border Background="{StaticResource CheckerboardBrush}"
-                                                CornerRadius="2,2,0,0" Height="150">
+                                        <Grid Height="144">
+                                            <Border Background="{StaticResource CheckerboardBrush}"
+                                                    CornerRadius="2,2,0,0" />
                                             <Image Source="{Binding Thumbnail}" Stretch="None"
                                                    RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                                        </Border>
+                                            <Border Style="{StaticResource Pill}" Margin="4"
+                                                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Background="{StaticResource BlueToneBrush}"
+                                                    Visibility="{Binding HasBack,
+                                                                Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="+BACK" FontSize="8"
+                                                           Foreground="{StaticResource BlueBrush}" />
+                                            </Border>
+                                        </Grid>
                                         <StackPanel Margin="7,5,7,7">
-                                            <TextBlock Text="{Binding UniqueId}" FontSize="11"
+                                            <TextBlock Text="{Binding Id}" FontSize="11"
                                                        TextTrimming="CharacterEllipsis"
                                                        Foreground="{StaticResource TextPrimaryBrush}" />
                                             <TextBlock Text="{Binding ModName}" FontSize="10" Margin="0,2,0,0"
@@ -149,40 +201,129 @@
         </Border>
 
         <!-- === THE CHARACTER === -->
-        <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Card}" Padding="14"
-                VerticalAlignment="Top">
+        <ScrollViewer Grid.Row="2" Grid.Column="2" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <TextBlock Text="THE CHARACTER" Style="{StaticResource SectionHeader}" />
+                <Border Style="{StaticResource Card}" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="THE CHARACTER" Style="{StaticResource SectionHeader}" />
 
-                <Border Margin="0,10,0,0" Height="300" CornerRadius="{StaticResource RadiusControl}"
-                        Background="{StaticResource CheckerboardBrush}"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                    <Image Source="{Binding Preview}" Stretch="None"
-                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                        <Border Margin="0,10,0,0" Height="290"
+                                CornerRadius="{StaticResource RadiusControl}"
+                                Background="{StaticResource CheckerboardBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Image Source="{Binding Preview}" Stretch="None"
+                                   RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                        </Border>
+
+                        <TextBlock Text="FACING" Style="{StaticResource SectionHeader}" Margin="0,12,0,6" />
+                        <UniformGrid Columns="4">
+                            <RadioButton Content="Front" GroupName="Face" Margin="0,0,4,0" FontSize="11"
+                                         IsChecked="True"
+                                         Command="{Binding FaceCommand}" CommandParameter="0" />
+                            <RadioButton Content="Left" GroupName="Face" Margin="0,0,4,0" FontSize="11"
+                                         Command="{Binding FaceCommand}" CommandParameter="1" />
+                            <RadioButton Content="Right" GroupName="Face" Margin="0,0,4,0" FontSize="11"
+                                         Command="{Binding FaceCommand}" CommandParameter="2" />
+                            <RadioButton Content="Back" GroupName="Face" FontSize="11"
+                                         Command="{Binding FaceCommand}" CommandParameter="3" />
+                        </UniformGrid>
+
+                        <Grid Margin="0,12,0,0">
+                            <CheckBox Content="Walk" IsChecked="{Binding Animate}" VerticalAlignment="Center" />
+                            <Slider Width="130" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    Minimum="1" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding WalkSpeed}"
+                                    ToolTip="Walking speed" />
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Randomise" Style="{StaticResource SubtleButton}"
+                                    Margin="0,0,6,0" Command="{Binding RandomiseCommand}" />
+                            <Button Content="Start over" Style="{StaticResource SubtleButton}"
+                                    Command="{Binding NewCharacterCommand}" />
+                        </StackPanel>
+                    </StackPanel>
                 </Border>
 
-                <TextBlock Text="FACING" Style="{StaticResource SectionHeader}" Margin="0,14,0,6" />
-                <UniformGrid Columns="4">
-                    <RadioButton Content="Front" GroupName="Face" Margin="0,0,4,0" FontSize="11"
-                                 IsChecked="True"
-                                 Command="{Binding FaceCommand}" CommandParameter="0" />
-                    <RadioButton Content="Left" GroupName="Face" Margin="0,0,4,0" FontSize="11"
-                                 Command="{Binding FaceCommand}" CommandParameter="1" />
-                    <RadioButton Content="Right" GroupName="Face" Margin="0,0,4,0" FontSize="11"
-                                 Command="{Binding FaceCommand}" CommandParameter="2" />
-                    <RadioButton Content="Back" GroupName="Face" FontSize="11"
-                                 Command="{Binding FaceCommand}" CommandParameter="3" />
-                </UniformGrid>
+                <!-- === SAVING INTO THE GAME === -->
+                <Border Style="{StaticResource Card}" Padding="14" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="SAVE INTO ELIN" Style="{StaticResource SectionHeader}" />
 
-                <CheckBox Content="Walk" Margin="0,12,0,0" IsChecked="{Binding Animate}" />
+                        <TextBox Margin="0,10,0,0" Padding="8,5"
+                                 Text="{Binding CharacterName, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{StaticResource SurfaceSunkenBrush}"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 BorderBrush="{StaticResource BorderBrush}" />
 
-                <Button Content="Randomise" Style="{StaticResource PrimaryButton}"
-                        HorizontalAlignment="Stretch" Margin="0,14,0,0"
-                        Command="{Binding RandomiseCommand}" />
-                <Button Content="Start over" Style="{StaticResource SubtleButton}"
-                        HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                        Command="{Binding ClearAllCommand}" />
+                        <Button Content="Save as a named character" Style="{StaticResource PrimaryButton}"
+                                HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                Command="{Binding SaveCommand}" />
+
+                        <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Text="Goes to Elin\User\PCC. Open Edit Appearance in game and press Import to load it." />
+
+                        <TextBlock Text="OR STRAIGHT INTO A FAV SLOT" Style="{StaticResource SectionHeader}"
+                                   Margin="0,14,0,6" />
+                        <UniformGrid Columns="5">
+                            <Button Content="1" Style="{StaticResource SubtleButton}" Margin="0,0,4,0"
+                                    Command="{Binding SaveToSlotCommand}" CommandParameter="1" />
+                            <Button Content="2" Style="{StaticResource SubtleButton}" Margin="0,0,4,0"
+                                    Command="{Binding SaveToSlotCommand}" CommandParameter="2" />
+                            <Button Content="3" Style="{StaticResource SubtleButton}" Margin="0,0,4,0"
+                                    Command="{Binding SaveToSlotCommand}" CommandParameter="3" />
+                            <Button Content="4" Style="{StaticResource SubtleButton}" Margin="0,0,4,0"
+                                    Command="{Binding SaveToSlotCommand}" CommandParameter="4" />
+                            <Button Content="5" Style="{StaticResource SubtleButton}"
+                                    Command="{Binding SaveToSlotCommand}" CommandParameter="5" />
+                        </UniformGrid>
+                        <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Text="Overwrites that Load Fav button in game. Quicker, but it replaces whatever was there." />
+                    </StackPanel>
+                </Border>
+
+                <!-- === CHARACTERS ALREADY SAVED IN THE GAME === -->
+                <Border Style="{StaticResource Card}" Padding="14" Margin="0,12,0,0">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Text="SAVED IN ELIN" Style="{StaticResource SectionHeader}"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="Folder" Style="{StaticResource SubtleButton}"
+                                        Padding="7,2" FontSize="10.5" Margin="0,0,4,0"
+                                        Command="{Binding OpenFolderCommand}" />
+                                <Button Content="Reload" Style="{StaticResource SubtleButton}"
+                                        Padding="7,2" FontSize="10.5"
+                                        Command="{Binding RefreshStylesCommand}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,7,0,8"
+                                   Text="Everything the game's own editor has saved, read straight from its folder - the five Fav slots and every export." />
+
+                        <ItemsControl ItemsSource="{Binding SavedStyles}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Margin="0,0,0,4" Padding="10,7"
+                                            HorizontalContentAlignment="Stretch"
+                                            Template="{StaticResource PickTemplate}"
+                                            Command="{Binding DataContext.LoadStyleCommand,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontSize="12"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{Binding Detail}" Margin="0,2,0,0"
+                                                       Style="{StaticResource MonoText}" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
             </StackPanel>
-        </Border>
+        </ScrollViewer>
     </Grid>
 </UserControl>

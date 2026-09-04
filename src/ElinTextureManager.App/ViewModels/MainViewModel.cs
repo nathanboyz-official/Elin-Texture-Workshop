@@ -262,8 +262,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Add(LibraryNav, "Portraits", "Portraits",
             "Character portraits, grouped by what their file names encode.");
         Add(LibraryNav, "Objects", "Objects", "Furniture, walls and placed objects.");
-        Add(LibraryNav, "DressUp", "Dress Up",
-            "Build a character from the PCC parts across your mods and see how they look together.");
+        Add(LibraryNav, "DressUp", "Character Creator",
+            "Build a character from the PCC parts across your mods and save it into the game.");
         Add(LibraryNav, "Pcc", "PCC Parts",
             "The layered parts characters are built from - hair, clothes, body, face. "
             + "Most character mods ship these and nothing else.");
