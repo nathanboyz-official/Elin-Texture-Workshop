@@ -256,6 +256,7 @@ public sealed class DressUpViewModel : ObservableObject
         SelectSlotCommand = new RelayCommand(p => SelectSlot(p as DressUpSlotViewModel));
         ChoosePartCommand = new RelayCommand(p => Choose(p as PccPartViewModel));
         ClearSlotCommand = new RelayCommand(_ => Choose(null));
+        ToggleCreationsCommand = new RelayCommand(_ => CreationsShown = !CreationsShown);
         ChooseDyeCommand = new RelayCommand(p => Dye(p as DyeViewModel));
         RandomiseCommand = new RelayCommand(_ => Randomise());
         RandomColoursCommand = new RelayCommand(_ => RandomColours());
@@ -302,6 +303,26 @@ public sealed class DressUpViewModel : ObservableObject
     public ObservableCollection<PccPartViewModel> Creations { get; } = new();
 
     public bool HasCreations => Creations.Count > 0;
+
+    private bool _creationsShown = true;
+
+    /// <summary>
+    /// Whether the Creations section is open. Clicking its heading folds it away: once a
+    /// few parts have been made they push the installed ones off the screen, and they are
+    /// not always what is being looked for.
+    /// </summary>
+    public bool CreationsShown
+    {
+        get => _creationsShown;
+        set
+        {
+            if (SetProperty(ref _creationsShown, value))
+                OnPropertyChanged(nameof(CreationsChevron));
+        }
+    }
+
+    /// <summary>Points down when the section is open, right when it is folded away.</summary>
+    public string CreationsChevron => _creationsShown ? "▾" : "▸";
     public ObservableCollection<SavedStyleViewModel> SavedStyles { get; } = new();
     public ObservableCollection<DyeViewModel> Dyes { get; } = new();
 
@@ -313,6 +334,7 @@ public sealed class DressUpViewModel : ObservableObject
     public RelayCommand SelectSlotCommand { get; }
     public RelayCommand ChoosePartCommand { get; }
     public RelayCommand ClearSlotCommand { get; }
+    public RelayCommand ToggleCreationsCommand { get; }
     public RelayCommand ChooseDyeCommand { get; }
     public RelayCommand RandomiseCommand { get; }
     public RelayCommand RandomColoursCommand { get; }

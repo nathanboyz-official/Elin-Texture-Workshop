@@ -371,10 +371,46 @@
                      installed parts is not a search anyone should have to do. -->
                 <StackPanel Grid.Row="3" Margin="0,0,0,10"
                             Visibility="{Binding HasCreations, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="CREATIONS" Style="{StaticResource SectionHeader}"
-                               Margin="0,0,0,6" />
+                    <!-- The heading folds the section away. Once a few parts have been
+                         made here they push the installed ones off the screen, and they
+                         are not always what is being looked for. The count stays on show
+                         while folded, so nothing goes quietly missing. -->
+                    <Button Command="{Binding ToggleCreationsCommand}"
+                            HorizontalAlignment="Left" Cursor="Hand"
+                            Margin="-4,0,0,4"
+                            ToolTip="Show or hide the parts you have made"
+                            AutomationProperties.Name="CREATIONS"
+                            AutomationProperties.HelpText="Show or hide the parts you have made">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Hit" Background="Transparent"
+                                        CornerRadius="3" Padding="4,2">
+                                    <ContentPresenter />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Hit" Property="Background"
+                                                Value="{StaticResource SurfaceSunkenBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
 
-                    <ScrollViewer MaxHeight="210" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding CreationsChevron}"
+                                       Style="{StaticResource SectionHeader}"
+                                       Width="10" Margin="0" />
+                            <TextBlock Text="CREATIONS"
+                                       Style="{StaticResource SectionHeader}" Margin="0" />
+                            <TextBlock Text="{Binding Creations.Count, StringFormat=({0})}"
+                                       Style="{StaticResource SectionHeader}"
+                                       Margin="5,0,0,0" />
+                        </StackPanel>
+                    </Button>
+
+                    <ScrollViewer MaxHeight="210" VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding CreationsShown,
+                                               Converter={StaticResource BoolToVis}}">
                         <ItemsControl ItemsSource="{Binding Creations}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
