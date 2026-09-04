@@ -242,14 +242,21 @@
                                                    RenderOptions.BitmapScalingMode="NearestNeighbor" />
 
                                             <!-- No entry: the empty choice, drawn rather
-                                                 than rendered from a part. -->
-                                            <Grid Width="46" Height="46"
+                                                 than rendered from a part. The bar runs
+                                                 top-left to bottom-right, as the sign
+                                                 everyone already knows does. -->
+                                            <Grid Width="52" Height="52"
                                                   Visibility="{Binding IsNone,
                                                               Converter={StaticResource BoolToVis}}">
-                                                <Ellipse Stroke="#C0473A" StrokeThickness="5" />
-                                                <Rectangle Height="5" Width="34" Fill="#C0473A"
+                                                <Ellipse Stroke="#E01B1B" StrokeThickness="7" />
+                                                <Rectangle Height="7" Width="38" Fill="#E01B1B"
                                                            HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center" />
+                                                           VerticalAlignment="Center"
+                                                           RenderTransformOrigin="0.5,0.5">
+                                                    <Rectangle.RenderTransform>
+                                                        <RotateTransform Angle="45" />
+                                                    </Rectangle.RenderTransform>
+                                                </Rectangle>
                                             </Grid>
                                             <Border Style="{StaticResource Pill}" Margin="4"
                                                     HorizontalAlignment="Left" VerticalAlignment="Top"
