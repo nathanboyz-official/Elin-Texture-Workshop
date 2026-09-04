@@ -12,6 +12,15 @@ public sealed class PccPiece
     public string? SourcePath { get; init; }
     public string? ModName { get; init; }
 
+    /// <summary>
+    /// The colour this part is dyed, or null to draw it as authored.
+    ///
+    /// PCC parts are drawn greyscale precisely so they can be tinted per character - it
+    /// is why the same hairstyle appears on a hundred different heads in a hundred
+    /// different colours, and why a style file stores six hex digits beside every part.
+    /// </summary>
+    public (byte R, byte G, byte B)? Tint { get; init; }
+
     public int Order => PccLayer.OrderOf(Layer);
 }
 
@@ -56,7 +65,7 @@ public static class PccComposer
         foreach (var piece in pieces.OrderBy(p => p.Order))
         {
             if (piece.Order < 0) continue;
-            DrawCell(canvas, width, height, piece.Sheet, direction, frame);
+            DrawCell(canvas, width, height, piece.Sheet, direction, frame, piece.Tint);
         }
 
         return new PixelBuffer { Bgra = canvas, Width = width, Height = height };
@@ -71,7 +80,7 @@ public static class PccComposer
     /// 64x96 coat sit correctly on a 32x48 body.
     /// </summary>
     private static void DrawCell(byte[] canvas, int width, int height,
-        PixelBuffer sheet, int direction, int frame)
+        PixelBuffer sheet, int direction, int frame, (byte R, byte G, byte B)? tint)
     {
         var cellWidth = sheet.Width / Columns;
         var cellHeight = sheet.Height / Rows;
@@ -93,18 +102,51 @@ public static class PccComposer
             if (alpha == 0) continue;
 
             var target = (y * width + x) * 4;
-            Blend(canvas, target, sheet.Bgra, source, alpha);
+            Blend(canvas, target, sheet.Bgra, source, alpha, tint);
         }
     }
 
+    /// <summary>
+    /// Neutral grey. A pixel this bright comes out exactly the chosen colour; darker
+    /// pixels are shadow, lighter ones are highlight.
+    ///
+    /// Measured from the parts themselves rather than assumed. Across vanilla hair,
+    /// cloth, body and eye sheets the opaque pixels average 113 to 164 and never reach
+    /// white - they are drawn around the middle of the range on purpose, so that dyeing
+    /// can go both up and down from there. Treating white as neutral instead would make
+    /// every character come out roughly half as bright as the colour they picked.
+    /// </summary>
+    private const int NeutralGrey = 128;
+
+    /// <summary>
+    /// Dyes one channel of a greyscale part.
+    ///
+    /// Multiply rather than replace, because the grey is not a placeholder - it is the
+    /// shading, and the folds and highlights the artist drew have to survive the dye.
+    /// </summary>
+    private static byte Dye(byte channel, byte tint) =>
+        (byte)Math.Min(255, channel * tint / NeutralGrey);
+
     /// <summary>Ordinary source-over compositing, on straight (not premultiplied) alpha.</summary>
-    private static void Blend(byte[] canvas, int target, byte[] source, int from, byte alpha)
+    private static void Blend(byte[] canvas, int target, byte[] source, int from, byte alpha,
+        (byte R, byte G, byte B)? tint)
     {
+        var b = source[from];
+        var g = source[from + 1];
+        var r = source[from + 2];
+
+        if (tint is { } colour)
+        {
+            b = Dye(b, colour.B);
+            g = Dye(g, colour.G);
+            r = Dye(r, colour.R);
+        }
+
         if (alpha == 255)
         {
-            canvas[target] = source[from];
-            canvas[target + 1] = source[from + 1];
-            canvas[target + 2] = source[from + 2];
+            canvas[target] = b;
+            canvas[target + 1] = g;
+            canvas[target + 2] = r;
             canvas[target + 3] = 255;
             return;
         }
@@ -119,9 +161,11 @@ public static class PccComposer
             return;
         }
 
+        var dyed = new[] { b, g, r };
+
         for (var c = 0; c < 3; c++)
         {
-            var src = source[from + c] / 255.0;
+            var src = dyed[c] / 255.0;
             var dst = canvas[target + c] / 255.0;
             canvas[target + c] = (byte)Math.Round(
                 (src * a + dst * existing * (1 - a)) / outAlpha * 255);
