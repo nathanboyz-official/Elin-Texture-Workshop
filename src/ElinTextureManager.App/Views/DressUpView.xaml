@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
              xmlns:controls="clr-namespace:ElinTextureManager.App.Controls"
+             xmlns:ctrl="clr-namespace:ElinTextureManager.App.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -112,9 +113,6 @@
                 <Grid Grid.Row="0" Margin="0,0,0,9">
                     <TextBlock Text="{Binding PartsTitle}" Style="{StaticResource SectionHeader}"
                                VerticalAlignment="Center" />
-                    <Button Content="Use none" Style="{StaticResource SubtleButton}"
-                            HorizontalAlignment="Right" Padding="7,2" FontSize="10.5"
-                            Command="{Binding ClearSlotCommand}" />
                 </Grid>
 
                 <!-- Dye for the chosen slot -->
@@ -208,11 +206,26 @@
                     </StackPanel>
                 </Border>
 
-                <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding Parts}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
+                <!-- Virtualised: Tops alone holds over a thousand parts, and turning the
+                     character redraws every tile that is realised. Only the ones on
+                     screen should pay for that. -->
+                <ItemsControl Grid.Row="3" ItemsSource="{Binding Parts}"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer Focusable="False" Padding="0,0,4,0">
+                                <ItemsPresenter />
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ctrl:VirtualizingWrapPanel ItemWidth="108" ItemHeight="196" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Width="100" Margin="0,0,8,8" Padding="0"
@@ -227,6 +240,17 @@
                                                     CornerRadius="2,2,0,0" />
                                             <Image Source="{Binding Thumbnail}" Stretch="None"
                                                    RenderOptions.BitmapScalingMode="NearestNeighbor" />
+
+                                            <!-- No entry: the empty choice, drawn rather
+                                                 than rendered from a part. -->
+                                            <Grid Width="46" Height="46"
+                                                  Visibility="{Binding IsNone,
+                                                              Converter={StaticResource BoolToVis}}">
+                                                <Ellipse Stroke="#C0473A" StrokeThickness="5" />
+                                                <Rectangle Height="5" Width="34" Fill="#C0473A"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
                                             <Border Style="{StaticResource Pill}" Margin="4"
                                                     HorizontalAlignment="Left" VerticalAlignment="Top"
                                                     Background="{StaticResource BlueToneBrush}"
@@ -247,9 +271,8 @@
                                     </StackPanel>
                                 </Button>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </Grid>
         </Border>
 
@@ -260,27 +283,39 @@
                     <StackPanel>
                         <TextBlock Text="THE CHARACTER" Style="{StaticResource SectionHeader}" />
 
-                        <Border Margin="0,10,0,0" Height="290"
-                                CornerRadius="{StaticResource RadiusControl}"
-                                Background="{StaticResource CheckerboardBrush}"
-                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                            <Image Source="{Binding Preview}" Stretch="None"
-                                   RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                        </Border>
+                        <Grid Margin="0,10,0,0" Height="290">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="FACING" Style="{StaticResource SectionHeader}" Margin="0,12,0,6" />
-                        <UniformGrid Columns="4">
-                            <RadioButton Content="Front" GroupName="Face" Margin="0,0,4,0" FontSize="11"
-                                         IsChecked="True"
-                                         Command="{Binding FaceCommand}" CommandParameter="0" />
-                            <RadioButton Content="Left" GroupName="Face" Margin="0,0,4,0" FontSize="11"
-                                         Command="{Binding FaceCommand}" CommandParameter="1" />
-                            <RadioButton Content="Right" GroupName="Face" Margin="0,0,4,0" FontSize="11"
-                                         Command="{Binding FaceCommand}" CommandParameter="2" />
-                            <RadioButton Content="Back" GroupName="Face" FontSize="11"
-                                         Command="{Binding FaceCommand}" CommandParameter="3" />
-                        </UniformGrid>
+                            <Button Grid.Column="0" Content="&#x25C0;" Width="26"
+                                          Style="{StaticResource SubtleButton}" Padding="0"
+                                          VerticalAlignment="Stretch" FontSize="13"
+                                          ToolTip="Turn left"
+                                    Command="{Binding TurnCommand}" CommandParameter="-1" />
 
+                            <Border Grid.Column="1" Margin="6,0"
+                                    CornerRadius="{StaticResource RadiusControl}"
+                                    Background="{StaticResource CheckerboardBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <Image Source="{Binding Preview}" Stretch="None"
+                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                            </Border>
+
+                            <Button Grid.Column="2" Content="&#x25B6;" Width="26"
+                                          Style="{StaticResource SubtleButton}" Padding="0"
+                                          VerticalAlignment="Stretch" FontSize="13"
+                                          ToolTip="Turn right"
+                                    Command="{Binding TurnCommand}" CommandParameter="1" />
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Margin="0,12,0,6">
+                            <Run Text="FACING" />
+                            <Run Text="{Binding FacingName, Mode=OneWay}"
+                                 Foreground="{StaticResource GoldBrush}" />
+                        </TextBlock>
                         <Grid Margin="0,12,0,0">
                             <CheckBox Content="Walk" IsChecked="{Binding Animate}" VerticalAlignment="Center" />
                             <Slider Width="130" HorizontalAlignment="Right" VerticalAlignment="Center"

@@ -17,16 +17,31 @@ namespace ElinTextureManager.App.ViewModels;
 /// <summary>One installed part, offered for a slot.</summary>
 public sealed class PccPartViewModel : ObservableObject
 {
+    private readonly Func<int> _direction;
+
     private BitmapSource? _thumbnail;
-    private bool _requested;
+    private int _renderedFor = -1;
     private bool _isChosen;
 
-    public PccPartViewModel(PccFile part) => Part = part;
+    public PccPartViewModel(PccFile part, Func<int> direction)
+    {
+        Part = part;
+        _direction = direction;
+    }
+
+    /// <summary>The empty choice, drawn as a "no entry" sign rather than a picture.</summary>
+    public static PccPartViewModel None(string layer) =>
+        new(new PccFile(layer, string.Empty, string.Empty, string.Empty, string.Empty), () => 0)
+        {
+            IsNone = true,
+        };
 
     public PccFile Part { get; }
 
-    public string Id => Part.Id;
-    public string ModName => Part.ModName;
+    public bool IsNone { get; private init; }
+
+    public string Id => IsNone ? "None" : Part.Id;
+    public string ModName => IsNone ? "wear nothing here" : Part.ModName;
     public string Layer => Part.Layer;
 
     /// <summary>Marks the hairstyles that bring a back piece, since it cannot be chosen apart.</summary>
@@ -48,22 +63,44 @@ public sealed class PccPartViewModel : ObservableObject
         private set => SetProperty(ref _thumbnail, value);
     }
 
+    /// <summary>
+    /// Redraws the tile when the character turns, so the parts on offer face the same
+    /// way as the character does.
+    ///
+    /// Only asks for it; the work happens when the binding next reads Thumbnail, which
+    /// for a virtualised grid means only the tiles actually on screen.
+    /// </summary>
+    public void FacingChanged()
+    {
+        if (IsNone || _renderedFor == _direction()) return;
+
+        _renderedFor = -1;
+        OnPropertyChanged(nameof(Thumbnail));
+    }
+
     private async void Ensure()
     {
-        if (_requested) return;
-        _requested = true;
+        if (IsNone) return;
+
+        var direction = _direction();
+        if (_renderedFor == direction) return;
+
+        _renderedFor = direction;
 
         var path = Part.FullPath;
         var layer = Part.Layer;
 
-        Thumbnail = await Task.Run(() =>
+        var rendered = await Task.Run(() =>
         {
             var sheet = PixelDecoder.Decode(path);
             if (sheet is null || !PccComposer.LooksLikeSheet(sheet)) return null;
 
             var piece = new PccPiece { Layer = layer, Sheet = sheet };
-            return PixelDecoder.ToBitmap(PccComposer.Compose(new[] { piece }, 0, 0, scale: 3));
+            return PixelDecoder.ToBitmap(PccComposer.Compose(new[] { piece }, direction, 0, scale: 3));
         });
+
+        // A newer facing may have been asked for while this one was decoding.
+        if (_renderedFor == direction) Thumbnail = rendered;
     }
 }
 
@@ -216,6 +253,10 @@ public sealed class DressUpViewModel : ObservableObject
         {
             if (int.TryParse(p as string, out var d)) Direction = d;
         });
+        TurnCommand = new RelayCommand(p =>
+        {
+            if (int.TryParse(p as string, out var by)) Direction += by;
+        });
 
         _animation = new DispatcherTimer();
         _animation.Tick += (_, _) => { if (_animate) Frame = (Frame + 1) % PccComposer.Columns; };
@@ -244,6 +285,7 @@ public sealed class DressUpViewModel : ObservableObject
     public RelayCommand OpenFolderCommand { get; }
     public RelayCommand RefreshStylesCommand { get; }
     public RelayCommand FaceCommand { get; }
+    public RelayCommand TurnCommand { get; }
 
     public DressUpSlotViewModel? SelectedSlot
     {
@@ -275,11 +317,35 @@ public sealed class DressUpViewModel : ObservableObject
         private set { SetProperty(ref _frame, value); Render(); }
     }
 
+    /// <summary>
+    /// Which way the character faces, 0 to 3.
+    ///
+    /// Turning the character turns the parts on offer with it, because judging a
+    /// hairstyle by its front when the character is facing away is guesswork.
+    /// </summary>
     public int Direction
     {
         get => _direction;
-        set { SetProperty(ref _direction, value); Render(); }
+        set
+        {
+            var wrapped = ((value % PccComposer.Rows) + PccComposer.Rows) % PccComposer.Rows;
+            if (!SetProperty(ref _direction, wrapped)) return;
+
+            foreach (var part in Parts) part.FacingChanged();
+
+            OnPropertyChanged(nameof(FacingName));
+            Render();
+        }
     }
+
+    /// <summary>The four rows of a sheet, in the order the format stores them.</summary>
+    public string FacingName => Direction switch
+    {
+        1 => "Left",
+        2 => "Right",
+        3 => "Back",
+        _ => "Front",
+    };
 
     public bool Animate
     {
@@ -452,6 +518,14 @@ public sealed class DressUpViewModel : ObservableObject
 
         var chosen = _style.Get(slot.Layer)?.FileId;
 
+        // "None" first, except for the body: a character with no body is not a character.
+        if (slot.Layer != PccSlots.BodyLayer)
+        {
+            var none = PccPartViewModel.None(slot.Layer);
+            none.IsChosen = chosen is null;
+            Parts.Add(none);
+        }
+
         foreach (var part in _library.InLayer(slot.Layer)
                      .Where(p => IsWearable(p.Set))
                      .OrderBy(p => p.ModName, StringComparer.CurrentCultureIgnoreCase)
@@ -461,7 +535,7 @@ public sealed class DressUpViewModel : ObservableObject
                        && _library.Resolve(slot.Slot.BackLayer,
                            new PccChoice { Set = part.Set, Id = part.Id }) is not null;
 
-            Parts.Add(new PccPartViewModel(part with { HasBack = back })
+            Parts.Add(new PccPartViewModel(part with { HasBack = back }, () => Direction)
             {
                 IsChosen = string.Equals(part.Id, chosen, StringComparison.OrdinalIgnoreCase),
             });
@@ -475,6 +549,9 @@ public sealed class DressUpViewModel : ObservableObject
     {
         var slot = SelectedSlot;
         if (slot is null) return;
+
+        // The None tile and the "Use none" button are the same action.
+        if (part is { IsNone: true }) part = null;
 
         if (part is null)
         {
