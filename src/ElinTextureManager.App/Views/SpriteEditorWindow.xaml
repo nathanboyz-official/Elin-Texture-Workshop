@@ -6,7 +6,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:SpriteEditorViewModel}"
-        Title="Edit sprite" Width="920" Height="790"
+        Title="Edit sprite" Width="980" Height="820"
+        KeyDown="OnKeyDown" KeyUp="OnKeyUp"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BackgroundBrush}"
         TextElement.Foreground="{StaticResource TextPrimaryBrush}"
@@ -96,15 +97,46 @@
                        RenderOptions.BitmapScalingMode="NearestNeighbor" />
             </RadioButton>
 
-            <TextBlock Text="NIB" Style="{StaticResource SectionHeader}"
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool" ToolTip="Line  (L)"
+                         IsChecked="{Binding IsLine, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="Line"
+                         Visibility="{Binding Painting, Converter={StaticResource BoolToVis}}">
+                <Image Source="/Tools/tool_line.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool" ToolTip="Rectangle  (U)"
+                         IsChecked="{Binding IsRectangle, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="Rectangle"
+                         Visibility="{Binding Painting, Converter={StaticResource BoolToVis}}">
+                <Image Source="/Tools/tool_rect.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool"
+                         ToolTip="Replace every pixel of one colour  (R)"
+                         IsChecked="{Binding IsReplace, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="ReplaceColour"
+                         Visibility="{Binding Painting, Converter={StaticResource BoolToVis}}">
+                <Image Source="/Tools/tool_swap.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
+
+            <CheckBox Content="Solid" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"
+                      ToolTip="Rectangles come out filled rather than outlined"
+                      IsChecked="{Binding FillShapes}"
+                      Visibility="{Binding IsRectangle, Converter={StaticResource BoolToVis}}" />
+
+            <TextBlock Text="SIZE" Style="{StaticResource SectionHeader}"
                        VerticalAlignment="Center" Margin="12,0,6,0" />
-            <Slider Width="70" Minimum="1" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True"
-                    VerticalAlignment="Center" Value="{Binding Nib}" />
+            <Slider Width="80" Minimum="1" Maximum="8" TickFrequency="1" IsSnapToTickEnabled="True"
+                    VerticalAlignment="Center" ToolTip="Brush size  ( [ and ] )"
+                    Value="{Binding BrushSize}" />
+            <TextBlock Text="{Binding BrushLabel}" Style="{StaticResource MonoText}"
+                       VerticalAlignment="Center" Margin="6,0,0,0" Width="36" />
 
             <Button Content="Undo" Style="{StaticResource SubtleButton}" Margin="12,0,4,0"
-                    Padding="8,3" Command="{Binding UndoCommand}" />
+                    Padding="8,3" ToolTip="Ctrl+Z" Command="{Binding UndoCommand}" />
             <Button Content="Redo" Style="{StaticResource SubtleButton}" Padding="8,3"
-                    Command="{Binding RedoCommand}" />
+                    ToolTip="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
         </WrapPanel>
 
         <!-- === WHICH STEP === -->
@@ -139,13 +171,17 @@
         <!-- === CANVAS === -->
         <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource Card}" Padding="12"
                 Margin="0,0,12,0">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="CanvasScroll"
+                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                          PreviewMouseWheel="OnCanvasWheel">
                 <Grid x:Name="CanvasHost" HorizontalAlignment="Center" VerticalAlignment="Center"
                       Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}"
                       Background="{StaticResource CheckerboardBrush}"
                       MouseLeftButtonDown="OnCanvasDown"
+                      MouseRightButtonDown="OnCanvasRightDown"
                       MouseMove="OnCanvasMove"
-                      MouseLeftButtonUp="OnCanvasUp">
+                      MouseLeftButtonUp="OnCanvasUp"
+                      MouseRightButtonUp="OnCanvasUp">
 
                     <!-- The character being built, behind the cell, so the part is drawn
                          in place rather than in the abstract. -->
@@ -253,7 +289,34 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <ItemsControl ItemsSource="{Binding Saved}" Margin="0,4,0,0">
+                        <TextBlock Text="IN THIS SPRITE" FontSize="9" Margin="0,6,0,4"
+                                   Foreground="{StaticResource TextMutedBrush}" />
+                        <ItemsControl ItemsSource="{Binding PaletteInUse}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Width="22" Height="22" Margin="0,0,4,4" Padding="0"
+                                            ToolTip="{Binding Label}"
+                                            Command="{Binding DataContext.ChooseColourCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border CornerRadius="3" Background="{Binding Swatch}"
+                                                        BorderBrush="{StaticResource BorderStrongBrush}"
+                                                        BorderThickness="1" />
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="SAVED" FontSize="9" Margin="0,6,0,4"
+                                   Foreground="{StaticResource TextMutedBrush}" />
+                        <ItemsControl ItemsSource="{Binding Saved}" Margin="0,0,0,0">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
@@ -302,12 +365,29 @@
                                 HorizontalAlignment="Stretch" Margin="0,6,0,0"
                                 ToolTip="Flip this cell left to right"
                                 Command="{Binding MirrorCommand}" />
+                        <Button Content="Flip upside down" Style="{StaticResource SubtleButton}"
+                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                Command="{Binding FlipCommand}" />
                         <Button Content="Copy the previous frame in" Style="{StaticResource SubtleButton}"
                                 HorizontalAlignment="Stretch" Margin="0,6,0,0"
                                 Command="{Binding CopyFromCommand}" CommandParameter="previousFrame" />
-                        <Button Content="Copy the front view in" Style="{StaticResource SubtleButton}"
+
+                        <TextBlock Text="SEND THIS CELL TO" Style="{StaticResource SectionHeader}"
+                                   Margin="0,12,0,6" />
+                        <UniformGrid Columns="2">
+                            <Button Content="Every frame" Style="{StaticResource SubtleButton}"
+                                    Margin="0,0,3,0"
+                                    ToolTip="The other three frames of this facing"
+                                    Command="{Binding SendToCommand}" CommandParameter="frames" />
+                            <Button Content="Every view" Style="{StaticResource SubtleButton}"
+                                    Margin="3,0,0,0"
+                                    ToolTip="The same frame on all four facings"
+                                    Command="{Binding SendToCommand}" CommandParameter="views" />
+                        </UniformGrid>
+                        <Button Content="The whole sheet" Style="{StaticResource SubtleButton}"
                                 HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                                Command="{Binding CopyFromCommand}" CommandParameter="front" />
+                                ToolTip="All sixteen cells"
+                                Command="{Binding SendToCommand}" CommandParameter="all" />
                         <Button Content="Clear this cell" Style="{StaticResource SubtleButton}"
                                 HorizontalAlignment="Stretch" Margin="0,6,0,0"
                                 Command="{Binding ClearCommand}" />
@@ -335,6 +415,27 @@
                         <Slider Minimum="0.1" Maximum="1" Margin="0,6,0,0"
                                 Value="{Binding CharacterOpacity}"
                                 IsEnabled="{Binding ShowCharacter}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- === KEYS === -->
+                <!-- Written down because they are the ones already in the hand of anyone
+                     who draws, and a tool that has them but does not say so is a tool
+                     nobody tries them in. -->
+                <Border Style="{StaticResource Card}" Padding="12" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="KEYS" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Style="{StaticResource MonoText}" Margin="0,7,0,0" LineHeight="17"
+                                   TextWrapping="Wrap"><Run
+                            Text="B pencil   E eraser   G fill" /><LineBreak /><Run
+                            Text="I pick     L line     U box" /><LineBreak /><Run
+                            Text="R replace a colour" /><LineBreak /><Run
+                            Text="[ ] brush size" /><LineBreak /><Run
+                            Text="Ctrl+Z undo, Ctrl+Shift+Z redo" /><LineBreak /><Run
+                            Text="Wheel zooms, Space drags" /><LineBreak /><Run
+                            Text="Right button erases" /><LineBreak /><Run
+                            Text="Alt picks a colour" /><LineBreak /><Run
+                            Text="Shift joins to the last point" /></TextBlock>
                     </StackPanel>
                 </Border>
 

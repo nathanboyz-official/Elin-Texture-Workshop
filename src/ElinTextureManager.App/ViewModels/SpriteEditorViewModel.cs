@@ -52,6 +52,9 @@ public enum SpriteTool
     Eraser,
     Fill,
     Dropper,
+    Line,
+    Rectangle,
+    ReplaceColour,
 }
 
 /// <summary>
@@ -86,6 +89,25 @@ public sealed class SpriteEditorViewModel : ObservableObject
     private BitmapSource? _character;
     private bool _marking;
     private bool _maskStarted;
+    private byte[]? _shapeBase;
+    private (int X, int Y) _shapeFrom;
+    private (int X, int Y)? _lastPoint;
+    private bool _fillShapes;
+    private bool _lineFromLast;
+
+    /// <summary>Set from Shift, which joins a stroke to where the last one ended.</summary>
+    public bool LineFromLast
+    {
+        get => _lineFromLast;
+        set => _lineFromLast = value;
+    }
+
+    /// <summary>Whether the rectangle tool draws solid or an outline.</summary>
+    public bool FillShapes
+    {
+        get => _fillShapes;
+        set => SetProperty(ref _fillShapes, value);
+    }
 
     private SpriteTool _tool = SpriteTool.Pencil;
     private int _nib = 1;
@@ -144,6 +166,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
         UndoCommand = new RelayCommand(_ => Undo(), _ => CanUndo);
         RedoCommand = new RelayCommand(_ => Redo(), _ => CanRedo);
         MirrorCommand = new RelayCommand(_ => Edit(s => s.MirrorCell(Direction, Frame)));
+        FlipCommand = new RelayCommand(_ => Edit(s => s.FlipCellVertically(Direction, Frame)));
+        SendToCommand = new RelayCommand(p => SendTo(p as string));
         ClearCommand = new RelayCommand(_ => Edit(s => s.ClearCell(Direction, Frame)));
         NudgeCommand = new RelayCommand(p => Nudge(p as string));
         CopyFromCommand = new RelayCommand(p => CopyFrom(p as string));
@@ -182,6 +206,16 @@ public sealed class SpriteEditorViewModel : ObservableObject
 
     public PccFile Source { get; }
 
+    /// <summary>
+    /// The colours this sprite already uses, most-used first.
+    ///
+    /// The palette an artist most wants to hand: matching a shade by eye off a wheel is
+    /// how a sixteen-colour sprite quietly becomes a forty-colour one.
+    /// </summary>
+    public IReadOnlyList<DyeViewModel> PaletteInUse => _sheet.ColoursUsed()
+        .Select(c => new DyeViewModel(PccColour.ToHex(c.R, c.G, c.B)))
+        .ToList();
+
     /// <summary>Each piece the character behind wears, with its own switch.</summary>
     public ObservableCollection<BackdropPieceViewModel> Behind { get; } = new();
 
@@ -194,6 +228,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
     public RelayCommand UndoCommand { get; }
     public RelayCommand RedoCommand { get; }
     public RelayCommand MirrorCommand { get; }
+    public RelayCommand FlipCommand { get; }
+    public RelayCommand SendToCommand { get; }
     public RelayCommand ClearCommand { get; }
     public RelayCommand NudgeCommand { get; }
     public RelayCommand CopyFromCommand { get; }
@@ -282,6 +318,12 @@ public sealed class SpriteEditorViewModel : ObservableObject
     public bool IsEraser => _tool == SpriteTool.Eraser;
     public bool IsFill => _tool == SpriteTool.Fill;
     public bool IsDropper => _tool == SpriteTool.Dropper;
+    public bool IsLine => _tool == SpriteTool.Line;
+    public bool IsRectangle => _tool == SpriteTool.Rectangle;
+    public bool IsReplace => _tool == SpriteTool.ReplaceColour;
+
+    /// <summary>True for tools that are dragged out and only land when released.</summary>
+    private bool IsShape => _tool is SpriteTool.Line or SpriteTool.Rectangle;
 
     private void RaiseToolFlags()
     {
@@ -289,13 +331,33 @@ public sealed class SpriteEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEraser));
         OnPropertyChanged(nameof(IsFill));
         OnPropertyChanged(nameof(IsDropper));
+        OnPropertyChanged(nameof(IsLine));
+        OnPropertyChanged(nameof(IsRectangle));
+        OnPropertyChanged(nameof(IsReplace));
+        OnPropertyChanged(nameof(ToolName));
     }
 
-    public int Nib
+    public string ToolName => _tool switch
+    {
+        SpriteTool.Eraser => "Eraser",
+        SpriteTool.Fill => "Fill",
+        SpriteTool.Dropper => "Pick colour",
+        SpriteTool.Line => "Line",
+        SpriteTool.Rectangle => "Rectangle",
+        SpriteTool.ReplaceColour => "Replace colour",
+        _ => "Pencil",
+    };
+
+    /// <summary>
+    /// Brush size in pixels, 1 to 8. Bracket keys step it, as everywhere else.
+    /// </summary>
+    public int BrushSize
     {
         get => _nib;
-        set => SetProperty(ref _nib, Math.Clamp(value, 1, 4));
+        set { SetProperty(ref _nib, Math.Clamp(value, 1, 8)); OnPropertyChanged(nameof(BrushLabel)); }
     }
+
+    public string BrushLabel => $"{BrushSize} px";
 
     /// <summary>Which facing is being drawn. Every cell is edited separately.</summary>
     public int Direction
@@ -445,35 +507,110 @@ public sealed class SpriteEditorViewModel : ObservableObject
     /// <paramref name="starting"/> marks the first press of a drag, which is where the
     /// undo step is taken: one step per stroke, not one per pixel dragged over.
     /// </summary>
-    public void Apply(int x, int y, bool starting)
+    /// <summary>
+    /// A stroke on the canvas.
+    ///
+    /// <paramref name="starting"/> marks the first press of a drag, which is where the
+    /// undo step is taken - one per stroke, not one per pixel dragged over.
+    /// <paramref name="erasing"/> comes from the right button, which erases whatever
+    /// tool is held; every pixel editor works that way and the hand expects it.
+    /// <paramref name="picking"/> comes from Alt, the temporary eyedropper.
+    /// </summary>
+    public void Apply(int x, int y, bool starting, bool erasing = false, bool picking = false)
     {
-        if (Marking) { Mark(x, y, starting); return; }
-
-        if (Tool == SpriteTool.Dropper)
+        if (picking || (!Marking && Tool == SpriteTool.Dropper))
         {
-            var pixel = _sheet.Get(Direction, Frame, x, y);
-            if (pixel.A > 0) Colour = PccColour.ToHex(pixel.R, pixel.G, pixel.B);
+            var picked = _sheet.Get(Direction, Frame, x, y);
+            if (picked.A > 0) Colour = PccColour.ToHex(picked.R, picked.G, picked.B);
             return;
         }
 
-        if (starting) Remember();
+        if (Marking) { Mark(x, y, starting, erasing); return; }
+
+        if (starting)
+        {
+            Remember();
+
+            // A shape is dragged out and redrawn from this snapshot on every move, so
+            // that only the final one lands.
+            _shapeFrom = (x, y);
+            _shapeBase = IsShape ? _sheet.Snapshot() : null;
+        }
+
+        var colour = PccColour.FromHex(Colour);
 
         switch (Tool)
         {
-            case SpriteTool.Pencil when PccColour.FromHex(Colour) is { } rgb:
-                _sheet.Draw(Direction, Frame, x, y, Nib, rgb.B, rgb.G, rgb.R, 255);
+            case SpriteTool.Pencil when colour is { } rgb && !erasing:
+                // Shift joins to where the last stroke ended, as it does everywhere else.
+                if (starting && LineFromLast && _lastPoint.HasValue)
+                {
+                    var from = _lastPoint.Value;
+                    _sheet.DrawLine(Direction, Frame, from.X, from.Y, x, y,
+                        BrushSize, rgb.B, rgb.G, rgb.R, 255);
+                }
+                else
+                {
+                    _sheet.Draw(Direction, Frame, x, y, BrushSize, rgb.B, rgb.G, rgb.R, 255);
+                }
+
+                _lastPoint = (x, y);
                 break;
 
+            case SpriteTool.Pencil:
             case SpriteTool.Eraser:
-                _sheet.Draw(Direction, Frame, x, y, Nib, 0, 0, 0, 0);
+                _sheet.Draw(Direction, Frame, x, y, BrushSize, 0, 0, 0, 0);
+                _lastPoint = (x, y);
                 break;
 
-            case SpriteTool.Fill when PccColour.FromHex(Colour) is { } fill:
+            case SpriteTool.Fill when colour is { } fill && !erasing:
                 _sheet.Fill(Direction, Frame, x, y, fill.B, fill.G, fill.R, 255);
+                break;
+
+            case SpriteTool.Fill:
+                _sheet.Fill(Direction, Frame, x, y, 0, 0, 0, 0);
+                break;
+
+            case SpriteTool.ReplaceColour when colour is { } swap:
+                var target = _sheet.Get(Direction, Frame, x, y);
+                if (target.A > 0)
+                {
+                    if (erasing) _sheet.ReplaceColour(Direction, Frame, target, 0, 0, 0, 0);
+                    else _sheet.ReplaceColour(Direction, Frame, target, swap.B, swap.G, swap.R, 255);
+                }
+                break;
+
+            case SpriteTool.Line when _shapeBase is not null:
+            case SpriteTool.Rectangle when _shapeBase is not null:
+                _sheet.Restore(_shapeBase);
+                DrawShape(x, y, erasing, colour);
                 break;
         }
 
         Redraw();
+    }
+
+    private void DrawShape(int x, int y, bool erasing, (byte R, byte G, byte B)? colour)
+    {
+        var (b, g, r, a) = erasing || colour is null
+            ? ((byte)0, (byte)0, (byte)0, (byte)0)
+            : (colour.Value.B, colour.Value.G, colour.Value.R, (byte)255);
+
+        var (fx, fy) = _shapeFrom;
+
+        if (Tool == SpriteTool.Line)
+            _sheet.DrawLine(Direction, Frame, fx, fy, x, y, BrushSize, b, g, r, a);
+        else
+            _sheet.DrawRectangle(Direction, Frame, fx, fy, x, y, BrushSize, FillShapes, b, g, r, a);
+
+        _lastPoint = (x, y);
+    }
+
+    /// <summary>Ends a drag, so a shape stops being redrawn from its snapshot.</summary>
+    public void FinishStroke()
+    {
+        _shapeBase = null;
+        OnPropertyChanged(nameof(PaletteInUse));
     }
 
     /// <summary>
@@ -481,14 +618,22 @@ public sealed class SpriteEditorViewModel : ObservableObject
     /// fill marks a whole region of one colour - which is the quick way to say "all of
     /// the cloth, none of the buckle".
     /// </summary>
-    private void Mark(int x, int y, bool starting)
+    private void Mark(int x, int y, bool starting, bool erasing = false)
     {
         if (starting) RememberMask();
 
         switch (Tool)
         {
             case SpriteTool.Eraser:
-                _mask.Paint(Direction, Frame, x, y, Nib, false);
+                _mask.Paint(Direction, Frame, x, y, BrushSize, false);
+                break;
+
+            case not SpriteTool.Fill when erasing:
+                _mask.Paint(Direction, Frame, x, y, BrushSize, false);
+                break;
+
+            case SpriteTool.Fill when erasing:
+                MarkRegion(x, y, false);
                 break;
 
             case SpriteTool.Fill:
@@ -496,7 +641,7 @@ public sealed class SpriteEditorViewModel : ObservableObject
                 break;
 
             default:
-                _mask.Paint(Direction, Frame, x, y, Nib, true);
+                _mask.Paint(Direction, Frame, x, y, BrushSize, true);
                 break;
         }
 
@@ -534,6 +679,37 @@ public sealed class SpriteEditorViewModel : ObservableObject
                 queue.Enqueue((nx, ny));
             }
         }
+    }
+
+    /// <summary>
+    /// Copies this cell out to the others.
+    ///
+    /// The usual case by a wide margin: a hat does not change between the four frames of
+    /// a walk, so drawing it once and sending it across beats drawing it four times.
+    /// </summary>
+    private void SendTo(string? where)
+    {
+        var targets = where switch
+        {
+            "frames" => Enumerable.Range(0, PccComposer.Columns).Select(f => (Direction, Frame: f)),
+            "views" => Enumerable.Range(0, PccComposer.Rows).Select(d => (Direction: d, Frame)),
+            "all" => Enumerable.Range(0, PccComposer.Rows).SelectMany(d =>
+                Enumerable.Range(0, PccComposer.Columns).Select(f => (Direction: d, Frame: f))),
+            _ => null,
+        };
+
+        if (targets is null) return;
+
+        var list = targets.Where(t => t.Direction != Direction || t.Frame != Frame).ToList();
+        if (list.Count == 0) return;
+
+        Edit(sheet =>
+        {
+            foreach (var (direction, frame) in list)
+                sheet.CopyCell(Direction, Frame, direction, frame);
+        });
+
+        Status = $"Copied into {list.Count} other cells. Undo puts them back.";
     }
 
     private void RememberMask()

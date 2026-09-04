@@ -201,4 +201,109 @@ public sealed class PccSheet
         for (var x = 0; x < CellWidth; x++)
             Set(direction, frame, x, y, 0, 0, 0, 0);
     }
+
+    /// <summary>
+    /// A straight line, by Bresenham.
+    ///
+    /// Pixel art needs a real line tool: dragging a pencil freehand across 32 pixels
+    /// gives a wobble that is visible at this size, and the staircase Bresenham produces
+    /// is the one artists expect.
+    /// </summary>
+    public void DrawLine(int direction, int frame, int x0, int y0, int x1, int y1,
+        int size, byte b, byte g, byte r, byte a)
+    {
+        var dx = Math.Abs(x1 - x0);
+        var dy = -Math.Abs(y1 - y0);
+        var sx = x0 < x1 ? 1 : -1;
+        var sy = y0 < y1 ? 1 : -1;
+        var error = dx + dy;
+
+        while (true)
+        {
+            Draw(direction, frame, x0, y0, size, b, g, r, a);
+
+            if (x0 == x1 && y0 == y1) break;
+
+            var doubled = error * 2;
+            if (doubled >= dy) { error += dy; x0 += sx; }
+            if (doubled <= dx) { error += dx; y0 += sy; }
+        }
+    }
+
+    /// <summary>A rectangle from corner to corner, outlined or solid.</summary>
+    public void DrawRectangle(int direction, int frame, int x0, int y0, int x1, int y1,
+        int size, bool filled, byte b, byte g, byte r, byte a)
+    {
+        var left = Math.Min(x0, x1);
+        var right = Math.Max(x0, x1);
+        var top = Math.Min(y0, y1);
+        var bottom = Math.Max(y0, y1);
+
+        if (filled)
+        {
+            for (var y = top; y <= bottom; y++)
+            for (var x = left; x <= right; x++)
+                Set(direction, frame, x, y, b, g, r, a);
+
+            return;
+        }
+
+        DrawLine(direction, frame, left, top, right, top, size, b, g, r, a);
+        DrawLine(direction, frame, left, bottom, right, bottom, size, b, g, r, a);
+        DrawLine(direction, frame, left, top, left, bottom, size, b, g, r, a);
+        DrawLine(direction, frame, right, top, right, bottom, size, b, g, r, a);
+    }
+
+    /// <summary>Flips one cell top to bottom.</summary>
+    public void FlipCellVertically(int direction, int frame)
+    {
+        for (var y = 0; y < CellHeight / 2; y++)
+        for (var x = 0; x < CellWidth; x++)
+        {
+            var top = Get(direction, frame, x, y);
+            var bottom = Get(direction, frame, x, CellHeight - 1 - y);
+
+            Set(direction, frame, x, y, bottom.B, bottom.G, bottom.R, bottom.A);
+            Set(direction, frame, x, CellHeight - 1 - y, top.B, top.G, top.R, top.A);
+        }
+    }
+
+    /// <summary>
+    /// Swaps one colour for another throughout a cell, wherever it appears.
+    ///
+    /// Not a flood fill: recolouring a garment whose panels are separated by outlines
+    /// takes a dozen fills and one replace.
+    /// </summary>
+    public void ReplaceColour(int direction, int frame,
+        (byte B, byte G, byte R, byte A) from, byte b, byte g, byte r, byte a)
+    {
+        for (var y = 0; y < CellHeight; y++)
+        for (var x = 0; x < CellWidth; x++)
+            if (Get(direction, frame, x, y) == from) Set(direction, frame, x, y, b, g, r, a);
+    }
+
+    /// <summary>
+    /// Every colour the sheet actually uses, most-used first.
+    ///
+    /// A sprite's own palette is the one an artist wants to hand: matching a shade by
+    /// eye off a wheel is how a sixteen-colour sprite becomes a forty-colour one.
+    /// </summary>
+    public IReadOnlyList<(byte B, byte G, byte R)> ColoursUsed(int limit = 24)
+    {
+        var counts = new Dictionary<int, int>();
+
+        for (var i = 0; i + 3 < _pixels.Length; i += 4)
+        {
+            if (_pixels[i + 3] < 128) continue;
+
+            var key = _pixels[i] | (_pixels[i + 1] << 8) | (_pixels[i + 2] << 16);
+            counts[key] = counts.GetValueOrDefault(key) + 1;
+        }
+
+        return counts
+            .OrderByDescending(p => p.Value)
+            .Take(limit)
+            .Select(p => ((byte)(p.Key & 0xFF), (byte)((p.Key >> 8) & 0xFF), (byte)((p.Key >> 16) & 0xFF)))
+            .ToList();
+    }
 }

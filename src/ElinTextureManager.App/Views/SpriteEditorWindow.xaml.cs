@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using ElinTextureManager.App.ViewModels;
 
@@ -7,7 +8,12 @@ namespace ElinTextureManager.App.Views;
 public partial class SpriteEditorWindow : Window
 {
     private readonly SpriteEditorViewModel _model;
+
     private bool _drawing;
+    private bool _panning;
+    private Point _panFrom;
+    private double _panOffsetX;
+    private double _panOffsetY;
 
     public SpriteEditorWindow(SpriteEditorViewModel model)
     {
@@ -25,30 +31,164 @@ public partial class SpriteEditorWindow : Window
         var point = e.GetPosition(CanvasHost);
         var zoom = Math.Max(1, _model.Zoom);
 
-        return ((int)(point.X / zoom), (int)(point.Y / zoom));
+        return ((int)Math.Floor(point.X / zoom), (int)Math.Floor(point.Y / zoom));
     }
 
+    private static bool Held(Key key) => Keyboard.IsKeyDown(key);
+
     private void OnCanvasDown(object sender, MouseButtonEventArgs e)
+    {
+        // Space turns the canvas into something to drag, as it does everywhere else.
+        if (Held(Key.Space)) { StartPan(e); return; }
+
+        _drawing = true;
+        CanvasHost.CaptureMouse();
+
+        _model.LineFromLast = Held(Key.LeftShift) || Held(Key.RightShift);
+
+        var (x, y) = CellPoint(e);
+        _model.Apply(x, y, starting: true, picking: Held(Key.LeftAlt) || Held(Key.RightAlt));
+    }
+
+    /// <summary>Right button erases whatever tool is held, as every pixel editor does.</summary>
+    private void OnCanvasRightDown(object sender, MouseButtonEventArgs e)
     {
         _drawing = true;
         CanvasHost.CaptureMouse();
 
         var (x, y) = CellPoint(e);
-        _model.Apply(x, y, starting: true);
+        _model.Apply(x, y, starting: true, erasing: true);
+        e.Handled = true;
     }
 
     private void OnCanvasMove(object sender, MouseEventArgs e)
     {
-        if (!_drawing || e.LeftButton != MouseButtonState.Pressed) return;
+        if (_panning) { Pan(e); return; }
+        if (!_drawing) return;
+
+        var left = e.LeftButton == MouseButtonState.Pressed;
+        var right = e.RightButton == MouseButtonState.Pressed;
+        if (!left && !right) return;
 
         var (x, y) = CellPoint(e);
-        _model.Apply(x, y, starting: false);
+        _model.Apply(x, y, starting: false, erasing: right,
+            picking: left && (Held(Key.LeftAlt) || Held(Key.RightAlt)));
     }
 
     private void OnCanvasUp(object sender, MouseButtonEventArgs e)
     {
+        if (_panning) { EndPan(); return; }
+
         _drawing = false;
+        _model.LineFromLast = false;
+        _model.FinishStroke();
         CanvasHost.ReleaseMouseCapture();
+    }
+
+    /// <summary>
+    /// Wheel zooms, keeping the pixel under the cursor where it is.
+    ///
+    /// Zooming about the centre instead is the thing that makes a picker feel cheap:
+    /// the detail being worked on slides away exactly when it is being looked at.
+    /// </summary>
+    private void OnCanvasWheel(object sender, MouseWheelEventArgs e)
+    {
+        var before = e.GetPosition(CanvasHost);
+        var was = _model.Zoom;
+
+        _model.Zoom = Math.Clamp(was + (e.Delta > 0 ? 2 : -2), 2, 32);
+        if (_model.Zoom == was) { e.Handled = true; return; }
+
+        // Where that pixel has moved to once the canvas resized, and how far the view
+        // has to shift to put it back under the cursor.
+        var scale = _model.Zoom / (double)was;
+        var view = e.GetPosition(CanvasScroll);
+
+        CanvasScroll.UpdateLayout();
+        CanvasScroll.ScrollToHorizontalOffset(before.X * scale - (view.X - CanvasScroll.HorizontalOffset));
+        CanvasScroll.ScrollToVerticalOffset(before.Y * scale - (view.Y - CanvasScroll.VerticalOffset));
+
+        e.Handled = true;
+    }
+
+    private void StartPan(MouseButtonEventArgs e)
+    {
+        _panning = true;
+        _panFrom = e.GetPosition(CanvasScroll);
+        _panOffsetX = CanvasScroll.HorizontalOffset;
+        _panOffsetY = CanvasScroll.VerticalOffset;
+
+        CanvasHost.CaptureMouse();
+        Cursor = Cursors.ScrollAll;
+    }
+
+    private void Pan(MouseEventArgs e)
+    {
+        var now = e.GetPosition(CanvasScroll);
+
+        CanvasScroll.ScrollToHorizontalOffset(_panOffsetX - (now.X - _panFrom.X));
+        CanvasScroll.ScrollToVerticalOffset(_panOffsetY - (now.Y - _panFrom.Y));
+    }
+
+    private void EndPan()
+    {
+        _panning = false;
+        CanvasHost.ReleaseMouseCapture();
+        Cursor = Cursors.Arrow;
+    }
+
+    /// <summary>
+    /// The shortcuts a pixel artist already has in their hands. Ignored while a text box
+    /// has focus, so typing a name does not swap the tool.
+    /// </summary>
+    private void OnKeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.FocusedElement is TextBox) return;
+
+        var control = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+        var shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
+        if (control)
+        {
+            switch (e.Key)
+            {
+                case Key.Z when shift:
+                case Key.Y:
+                    _model.RedoCommand.Execute(null); e.Handled = true; return;
+                case Key.Z:
+                    _model.UndoCommand.Execute(null); e.Handled = true; return;
+            }
+
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.B: _model.Tool = SpriteTool.Pencil; break;
+            case Key.E: _model.Tool = SpriteTool.Eraser; break;
+            case Key.G: _model.Tool = SpriteTool.Fill; break;
+            case Key.I: _model.Tool = SpriteTool.Dropper; break;
+            case Key.L: _model.Tool = SpriteTool.Line; break;
+            case Key.U: _model.Tool = SpriteTool.Rectangle; break;
+            case Key.R: _model.Tool = SpriteTool.ReplaceColour; break;
+
+            case Key.OemOpenBrackets: _model.BrushSize--; break;
+            case Key.OemCloseBrackets: _model.BrushSize++; break;
+
+            case Key.Space when !_panning:
+                // Swallowed so it does not press whatever button has focus.
+                Cursor = Cursors.ScrollAll;
+                break;
+
+            default: return;
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnKeyUp(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space && !_panning) Cursor = Cursors.Arrow;
     }
 
     private void OnSave(object sender, RoutedEventArgs e) => _model.Save();

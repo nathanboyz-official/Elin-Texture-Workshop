@@ -41,6 +41,9 @@
     <Resource Include="..\..\assets\tools\tool_eraser.png" Link="Tools/tool_eraser.png" />
     <Resource Include="..\..\assets\tools\tool_fill.png" Link="Tools/tool_fill.png" />
     <Resource Include="..\..\assets\tools\tool_dropper.png" Link="Tools/tool_dropper.png" />
+    <Resource Include="..\..\assets\tools\tool_line.png" Link="Tools/tool_line.png" />
+    <Resource Include="..\..\assets\tools\tool_rect.png" Link="Tools/tool_rect.png" />
+    <Resource Include="..\..\assets\tools\tool_swap.png" Link="Tools/tool_swap.png" />
   </ItemGroup>
 
   <ItemGroup>
