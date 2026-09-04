@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- For the notification-area icon only. WinForms ships with the runtime, so this
+         costs nothing but build size - unlike a NuGet tray library, which would put a
+         third-party dependency in the way of anyone building this from source. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>ElinTextureWorkshop</AssemblyName>
     <RootNamespace>ElinTextureManager.App</RootNamespace>
     <ApplicationIcon>..\..\assets\ElinTextureWorkshop.ico</ApplicationIcon>
@@ -13,6 +17,15 @@
     <RollForward>LatestMajor</RollForward>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWindowsForms adds a global using for System.Windows.Forms, which then
+         collides with WPF's UserControl, Application and DragEventArgs in every
+         view, and System.Drawing brings its own Size and Color. Only the tray icon
+         wants either, and it says so itself. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ElinTextureManager.Core\ElinTextureManager.Core.csproj" />

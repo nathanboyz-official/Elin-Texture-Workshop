@@ -55,7 +55,55 @@ public partial class MainWindow : Window
             settings.WindowHeight = Height;
         }
 
+        // Size and position are worth keeping either way, but the view model holds file
+        // watchers and a scan: disposing it here would leave a hidden window wired to
+        // nothing, so it only happens when the application is really going away.
         _services.SaveSettings();
+
+        if (settings.MinimiseToTray && !App.IsExiting)
+        {
+            e.Cancel = true;
+            HideToTray();
+            return;
+        }
+
         _viewModel.Dispose();
+
+        // Shutdown is explicit because the window can be hidden rather than open; WPF
+        // would otherwise quit the moment it goes away.
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    /// <summary>Hides the window, telling the user where it went the first time.</summary>
+    private void HideToTray()
+    {
+        Hide();
+
+        if (_services.Settings.TrayHintShown) return;
+
+        _services.Settings.TrayHintShown = true;
+        _services.SaveSettings();
+
+        (System.Windows.Application.Current as App)?.Tray?.ShowHiddenHint();
+    }
+
+    /// <summary>Brings the window back from the notification area.</summary>
+    public void ShowFromTray()
+    {
+        Show();
+
+        if (WindowState == WindowState.Minimized)
+            WindowState = _services.Settings.WindowMaximized ? WindowState.Maximized : WindowState.Normal;
+
+        Activate();
+        Topmost = true;
+        Topmost = false;
+    }
+
+    /// <summary>Brings the window back and puts it on the Settings page.</summary>
+    public void ShowSettingsFromTray()
+    {
+        ShowFromTray();
+        _viewModel.Navigate("Settings");
     }
 }

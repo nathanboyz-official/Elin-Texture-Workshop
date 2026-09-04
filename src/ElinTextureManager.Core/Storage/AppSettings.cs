@@ -63,6 +63,18 @@ public sealed class AppSettings
     public bool EnableWorkshopChecks { get; set; }
 
     /// <summary>
+    /// Whether closing the window hides it to the notification area instead of quitting.
+    ///
+    /// On by default: this is a tool people dip in and out of while the game is running,
+    /// and a full rescan of a large library on every launch is a poor way to answer a
+    /// question you only just thought of.
+    /// </summary>
+    public bool MinimiseToTray { get; set; } = true;
+
+    /// <summary>Whether the "it is still running down here" hint has been shown.</summary>
+    public bool TrayHintShown { get; set; }
+
+    /// <summary>
     /// Open Workshop links in the Steam desktop client rather than a browser. This is a
     /// local protocol hand-off and needs no account or sign-in; off sends them to the
     /// browser instead. Ignored when Steam is not installed.

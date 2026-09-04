@@ -9,9 +9,22 @@ public partial class App : Application
 {
     public AppServices Services { get; } = new();
 
+    /// <summary>The notification-area icon, or null when it could not be created.</summary>
+    public TrayIcon? Tray { get; private set; }
+
+    /// <summary>
+    /// Set when the application is genuinely going away, so the window knows the
+    /// difference between the user closing it and the application shutting down.
+    /// </summary>
+    public static bool IsExiting { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // The window can be hidden to the tray rather than open, and the default of
+        // quitting when the last window closes would make that the same as quitting.
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         // An unhandled exception should surface as a message and a log entry, never as a
         // silent disappearance - this application touches the user's game folder.
@@ -24,6 +37,52 @@ public partial class App : Application
         var window = new MainWindow(Services);
         MainWindow = window;
         window.Show();
+
+        SetUpTray(window);
+    }
+
+    /// <summary>
+    /// Wires the tray icon to the window. Failing here must not stop the application
+    /// starting: the icon is a convenience, and a machine where it cannot be created is
+    /// still a machine where the rest of this works.
+    /// </summary>
+    private void SetUpTray(MainWindow window)
+    {
+        try
+        {
+            var tray = new TrayIcon();
+
+            tray.OpenRequested += window.ShowFromTray;
+            tray.SettingsRequested += window.ShowSettingsFromTray;
+            tray.ExitRequested += Quit;
+            tray.Visible = Services.Settings.MinimiseToTray;
+
+            Tray = tray;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Could not create the notification-area icon", ex);
+        }
+    }
+
+    /// <summary>
+    /// Shuts down for real, from the tray menu.
+    ///
+    /// Goes through the window's close so that window size, settings and the scan are
+    /// all put away exactly as they are when the user closes it themselves.
+    /// </summary>
+    public void Quit()
+    {
+        IsExiting = true;
+
+        if (MainWindow is not null) MainWindow.Close();
+        else Shutdown();
+    }
+
+    /// <summary>Shows or hides the tray icon when the setting changes.</summary>
+    public void ApplyTraySetting()
+    {
+        if (Tray is not null) Tray.Visible = Services.Settings.MinimiseToTray;
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
@@ -43,6 +102,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         AppLog.Info("Application exiting.");
+        Tray?.Dispose();
         Services.Dispose();
         base.OnExit(e);
     }

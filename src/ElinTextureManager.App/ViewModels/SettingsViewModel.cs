@@ -76,6 +76,22 @@ public sealed class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Whether closing the window hides it to the notification area instead of quitting.
+    /// Turning it off also removes the tray icon, since it would then do nothing.
+    /// </summary>
+    public bool MinimiseToTray
+    {
+        get => _app.Settings.MinimiseToTray;
+        set
+        {
+            _app.Settings.MinimiseToTray = value;
+            Persist();
+            OnPropertyChanged();
+            (System.Windows.Application.Current as App)?.ApplyTraySetting();
+        }
+    }
+
+    /// <summary>
     /// Whether Mod Health may ask Steam what it currently publishes for the installed
     /// Workshop items. Off unless the user asks: it is the only thing that sends
     /// anything about their library, even though that is only public ID numbers.

@@ -152,6 +152,19 @@
                 </StackPanel>
             </Border>
 
+            <!-- ============ WINDOW ============ -->
+            <TextBlock Text="CLOSING THE WINDOW" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <CheckBox Content="Keep running in the notification area when the window is closed"
+                              IsChecked="{Binding MinimiseToTray}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="22,6,0,0"
+                               TextWrapping="Wrap"
+                               Text="The icon sits by the clock: double-click it to open the window again, or right-click for Open, Settings and Quit. Worth leaving on, because reopening means rescanning your whole library to answer a question you only just thought of. Turn it off and the close button quits, as it did before, and the icon goes away." />
+                </StackPanel>
+            </Border>
+
             <!-- ============ NETWORK ============ -->
             <TextBlock Text="NETWORK" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
 
