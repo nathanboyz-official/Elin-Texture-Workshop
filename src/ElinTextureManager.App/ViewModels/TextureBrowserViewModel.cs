@@ -60,6 +60,13 @@ public sealed class TextureBrowserViewModel : ObservableObject
     private string _selectedPrefixDisplay = AllPrefixes;
 
     /// <summary>
+    /// The groups on offer for what this page shows. Rebuilt whenever the scope changes,
+    /// because a family worth its own line across the library can be a single image once
+    /// the page is narrowed to portraits.
+    /// </summary>
+    private GroupIndex? _groups;
+
+    /// <summary>
     /// Bound to the combo box. Held here rather than left to the control's own selection
     /// because the list is rebuilt whenever the page changes, and a rebuilt list would
     /// otherwise leave the box showing nothing at all.
@@ -206,10 +213,20 @@ public sealed class TextureBrowserViewModel : ObservableObject
 
         var entries = Scoped();
 
-        if (_prefixFilter is not null)
-            entries = entries.Where(e => string.Equals(e.Prefix, _prefixFilter, StringComparison.OrdinalIgnoreCase));
+        // Filter and sort on the group actually offered in the dropdown, not on the raw
+        // prefix - otherwise picking "azurlane" would match nothing, because no single
+        // file's prefix is the word "azurlane".
+        // Rebuilt every time rather than cached: the scope changes from under this when
+        // the Conflicts or Overrides segment is picked, and a stale index would filter
+        // on families that no longer exist in what is being shown.
+        var groups = _groups = TextureGrouping.Build(Scoped());
 
-        foreach (var entry in entries.OrderBy(e => e.Prefix, StringComparer.OrdinalIgnoreCase)
+        if (_prefixFilter is not null)
+            entries = entries.Where(e =>
+                string.Equals(groups.GroupOf(e), _prefixFilter, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var entry in entries.OrderBy(e => groups.GroupOf(e), StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(e => e.Prefix, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(e => e.NumericId ?? int.MaxValue)
                      .ThenBy(e => e.TextureId, StringComparer.OrdinalIgnoreCase))
         {
@@ -274,15 +291,11 @@ public sealed class TextureBrowserViewModel : ObservableObject
         AvailablePrefixes.Clear();
         AvailablePrefixes.Add(AllPrefixes);
 
-        var histogram = Scoped()
-            .GroupBy(e => e.Prefix, StringComparer.OrdinalIgnoreCase)
-            .Select(g => (Prefix: g.Key, Count: g.Count()))
-            .OrderByDescending(t => t.Count)
-            .ThenBy(t => t.Prefix, StringComparer.OrdinalIgnoreCase);
+        _groups = TextureGrouping.Build(Scoped());
 
         string? stillThere = null;
 
-        foreach (var (prefix, count) in histogram)
+        foreach (var (prefix, count) in _groups.Groups)
         {
             var display = $"{prefix} ({count})";
             AvailablePrefixes.Add(display);
