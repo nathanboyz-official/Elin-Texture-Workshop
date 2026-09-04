@@ -114,8 +114,9 @@ public static class ScreenColourPicker
         };
 
         string? current = null;
+        var done = false;
 
-        var follow = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
+        var follow = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(25) };
         follow.Tick += (_, _) =>
         {
             if (!GetCursorPos(out var point)) return;
@@ -126,13 +127,25 @@ public static class ScreenColourPicker
             swatch.Background = new SolidColorBrush(Color.FromRgb(rgb.R, rgb.G, rgb.B));
             label.Text = "#" + current;
 
-            // Kept clear of the cursor so the pixel being sampled is never behind it.
-            Canvas.SetLeft(follower, point.X - overlay.Left + 18);
-            Canvas.SetTop(follower, point.Y - overlay.Top + 18);
+            // The cursor is in physical pixels and the window is in WPF's own units.
+            // On a scaled display those are different numbers, which is why the marker
+            // used to drift further from the cursor the further across the screen it
+            // went. The window's own transform is the only thing that knows the ratio.
+            var scaled = new Point(point.X, point.Y);
+
+            if (PresentationSource.FromVisual(overlay)?.CompositionTarget is { } target)
+                scaled = target.TransformFromDevice.Transform(scaled);
+
+            // Offset so the swatch never covers the pixel being sampled.
+            Canvas.SetLeft(follower, scaled.X - overlay.Left + 20);
+            Canvas.SetTop(follower, scaled.Y - overlay.Top + 20);
         };
 
         void Finish(string? hex)
         {
+            if (done) return;
+            done = true;
+
             follow.Stop();
             overlay.Close();
             result.TrySetResult(hex);
@@ -141,10 +154,15 @@ public static class ScreenColourPicker
         canvas.MouseLeftButtonDown += (_, _) => Finish(current);
         canvas.MouseRightButtonDown += (_, _) => Finish(null);
         overlay.KeyDown += (_, e) => { if (e.Key == Key.Escape) Finish(null); };
-        overlay.Deactivated += (_, _) => Finish(null);
 
+        // Deliberately not cancelled on deactivation. The overlay does not reliably win
+        // activation on every machine, and cancelling when it never had focus made the
+        // whole thing look broken - it would close before a click ever landed. Escape
+        // and the right button are the ways out.
         overlay.Show();
-        overlay.Focus();
+        overlay.Activate();
+        Keyboard.Focus(overlay);
+
         follow.Start();
 
         return result.Task;

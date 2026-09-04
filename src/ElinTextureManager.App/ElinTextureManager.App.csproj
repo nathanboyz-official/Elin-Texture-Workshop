@@ -44,6 +44,8 @@
     <Resource Include="..\..\assets\tools\tool_line.png" Link="Tools/tool_line.png" />
     <Resource Include="..\..\assets\tools\tool_rect.png" Link="Tools/tool_rect.png" />
     <Resource Include="..\..\assets\tools\tool_swap.png" Link="Tools/tool_swap.png" />
+    <Resource Include="..\..\assets\tools\tool_circle.png" Link="Tools/tool_circle.png" />
+    <Resource Include="..\..\assets\tools\tool_star.png" Link="Tools/tool_star.png" />
   </ItemGroup>
 
   <ItemGroup>

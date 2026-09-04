@@ -172,4 +172,101 @@ public sealed class PccDrawingTests
         // The other 6,143 pixels are empty, and "nothing" is not a shade to paint with.
         Assert.Single(sheet.ColoursUsed());
     }
+
+    [Fact]
+    public void A_solid_ellipse_fills_its_middle_and_stops_at_its_corners()
+    {
+        var sheet = Sheet();
+
+        sheet.DrawEllipse(0, 0, 4, 4, 20, 20, size: 1, filled: true, 1, 2, 3, 255);
+
+        Assert.Equal((byte)255, sheet.Get(0, 0, 12, 12).A);
+
+        // The corners of the box it was dragged in are outside the shape.
+        Assert.Equal((byte)0, sheet.Get(0, 0, 4, 4).A);
+        Assert.Equal((byte)0, sheet.Get(0, 0, 20, 20).A);
+    }
+
+    [Fact]
+    public void An_outlined_ellipse_is_hollow()
+    {
+        var sheet = Sheet();
+
+        sheet.DrawEllipse(0, 0, 2, 2, 22, 22, size: 1, filled: false, 1, 2, 3, 255);
+
+        Assert.Equal((byte)0, sheet.Get(0, 0, 12, 12).A);
+        Assert.Equal((byte)255, sheet.Get(0, 0, 12, 2).A);
+    }
+
+    [Fact]
+    public void A_circle_is_round_rather_than_lopsided()
+    {
+        var sheet = Sheet();
+
+        sheet.DrawEllipse(0, 0, 2, 2, 22, 22, 1, true, 1, 2, 3, 255);
+
+        // The same distance from the centre in all four directions.
+        Assert.Equal((byte)255, sheet.Get(0, 0, 12, 3).A);
+        Assert.Equal((byte)255, sheet.Get(0, 0, 12, 21).A);
+        Assert.Equal((byte)255, sheet.Get(0, 0, 3, 12).A);
+        Assert.Equal((byte)255, sheet.Get(0, 0, 21, 12).A);
+    }
+
+    [Fact]
+    public void An_ellipse_stays_inside_its_cell()
+    {
+        var sheet = Sheet();
+
+        sheet.DrawEllipse(0, 0, 10, 10, 60, 60, 1, true, 1, 2, 3, 255);
+
+        Assert.Equal((byte)0, sheet.Get(0, 1, 5, 5).A);
+        Assert.Equal((byte)0, sheet.Get(1, 0, 5, 5).A);
+    }
+
+    [Fact]
+    public void A_star_has_a_point_at_the_top()
+    {
+        var sheet = Sheet();
+
+        sheet.DrawStar(0, 0, cx: 16, cy: 24, toX: 16, toY: 8, points: 5, size: 1,
+            filled: false, 1, 2, 3, 255);
+
+        // Dragged straight up, so the first point lands where the drag ended.
+        Assert.Equal((byte)255, sheet.Get(0, 0, 16, 8).A);
+    }
+
+    [Fact]
+    public void A_solid_star_is_filled_at_its_centre_and_empty_between_its_points()
+    {
+        var sheet = Sheet();
+
+        sheet.DrawStar(0, 0, 16, 24, 16, 6, 5, 1, filled: true, 1, 2, 3, 255);
+
+        Assert.Equal((byte)255, sheet.Get(0, 0, 16, 24).A);
+
+        // Just outside the tip, in the notch between two points.
+        Assert.Equal((byte)0, sheet.Get(0, 0, 2, 2).A);
+    }
+
+    [Fact]
+    public void A_star_with_a_silly_number_of_points_is_brought_into_range()
+    {
+        var sheet = Sheet();
+
+        // Would otherwise divide by zero or spin.
+        sheet.DrawStar(0, 0, 16, 24, 16, 10, points: 0, size: 1, filled: false, 1, 2, 3, 255);
+        sheet.DrawStar(0, 0, 16, 24, 16, 10, points: 99, size: 1, filled: false, 1, 2, 3, 255);
+
+        Assert.True(Opaque(sheet) > 0);
+    }
+
+    [Fact]
+    public void A_star_dragged_nowhere_still_draws_something_rather_than_nothing()
+    {
+        var sheet = Sheet();
+
+        sheet.DrawStar(0, 0, 16, 24, 16, 24, 5, 1, false, 1, 2, 3, 255);
+
+        Assert.True(Opaque(sheet) > 0);
+    }
 }

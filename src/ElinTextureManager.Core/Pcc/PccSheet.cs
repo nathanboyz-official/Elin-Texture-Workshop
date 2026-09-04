@@ -306,4 +306,127 @@ public sealed class PccSheet
             .Select(p => ((byte)(p.Key & 0xFF), (byte)((p.Key >> 8) & 0xFF), (byte)((p.Key >> 16) & 0xFF)))
             .ToList();
     }
+
+    /// <summary>
+    /// An ellipse inside the dragged box, outlined or solid.
+    ///
+    /// Plotted from the ellipse equation rather than by midpoint stepping: at sixteen
+    /// pixels across, a circle that is one pixel out of round is a circle that looks
+    /// wrong, and the arithmetic is cheap at this size.
+    /// </summary>
+    public void DrawEllipse(int direction, int frame, int x0, int y0, int x1, int y1,
+        int size, bool filled, byte b, byte g, byte r, byte a)
+    {
+        var left = Math.Min(x0, x1);
+        var right = Math.Max(x0, x1);
+        var top = Math.Min(y0, y1);
+        var bottom = Math.Max(y0, y1);
+
+        var cx = (left + right) / 2.0;
+        var cy = (top + bottom) / 2.0;
+        var rx = Math.Max(0.5, (right - left) / 2.0);
+        var ry = Math.Max(0.5, (bottom - top) / 2.0);
+
+        for (var y = top; y <= bottom; y++)
+        for (var x = left; x <= right; x++)
+        {
+            var nx = (x - cx) / rx;
+            var ny = (y - cy) / ry;
+            var inside = nx * nx + ny * ny;
+
+            if (inside > 1.02) continue;
+
+            // The rim is the band just inside the edge; how wide it is follows the brush.
+            if (!filled)
+            {
+                var innerX = (rx - Math.Max(1, size)) / rx;
+                var innerY = (ry - Math.Max(1, size)) / ry;
+                var inner = innerX <= 0 || innerY <= 0
+                    ? 0
+                    : (x - cx) * (x - cx) / (rx - size) / (rx - size)
+                      + (y - cy) * (y - cy) / (ry - size) / (ry - size);
+
+                if (inner > 1) Set(direction, frame, x, y, b, g, r, a);
+                continue;
+            }
+
+            Set(direction, frame, x, y, b, g, r, a);
+        }
+    }
+
+    /// <summary>
+    /// A star, drawn from its centre out to where the drag ended.
+    ///
+    /// Five points by default, with the inner radius at the proportion that reads as a
+    /// star rather than as a cog or a splash.
+    /// </summary>
+    public void DrawStar(int direction, int frame, int cx, int cy, int toX, int toY,
+        int points, int size, bool filled, byte b, byte g, byte r, byte a)
+    {
+        points = Math.Clamp(points, 3, 12);
+
+        var outer = Math.Max(2, Math.Sqrt((toX - cx) * (toX - cx) + (toY - cy) * (toY - cy)));
+        var inner = outer * 0.42;
+
+        // Turned so a point faces up, which is the way a star is always drawn.
+        var start = -Math.PI / 2;
+        var step = Math.PI / points;
+
+        var corners = new List<(int X, int Y)>();
+
+        for (var i = 0; i < points * 2; i++)
+        {
+            var radius = i % 2 == 0 ? outer : inner;
+            var angle = start + step * i;
+
+            corners.Add(((int)Math.Round(cx + Math.Cos(angle) * radius),
+                         (int)Math.Round(cy + Math.Sin(angle) * radius)));
+        }
+
+        if (filled) FillPolygon(direction, frame, corners, b, g, r, a);
+
+        for (var i = 0; i < corners.Count; i++)
+        {
+            var from = corners[i];
+            var to = corners[(i + 1) % corners.Count];
+
+            DrawLine(direction, frame, from.X, from.Y, to.X, to.Y, size, b, g, r, a);
+        }
+    }
+
+    /// <summary>Scanline fill of a closed shape, used by the solid star.</summary>
+    private void FillPolygon(int direction, int frame, IReadOnlyList<(int X, int Y)> corners,
+        byte b, byte g, byte r, byte a)
+    {
+        if (corners.Count < 3) return;
+
+        var top = Math.Max(0, corners.Min(c => c.Y));
+        var bottom = Math.Min(CellHeight - 1, corners.Max(c => c.Y));
+
+        for (var y = top; y <= bottom; y++)
+        {
+            var crossings = new List<double>();
+
+            for (var i = 0; i < corners.Count; i++)
+            {
+                var (x1, y1) = corners[i];
+                var (x2, y2) = corners[(i + 1) % corners.Count];
+
+                if (y1 == y2) continue;
+                if (y < Math.Min(y1, y2) || y >= Math.Max(y1, y2)) continue;
+
+                crossings.Add(x1 + (y - y1) * (double)(x2 - x1) / (y2 - y1));
+            }
+
+            crossings.Sort();
+
+            for (var i = 0; i + 1 < crossings.Count; i += 2)
+            {
+                var from = (int)Math.Round(crossings[i]);
+                var to = (int)Math.Round(crossings[i + 1]);
+
+                for (var x = from; x <= to; x++) Set(direction, frame, x, y, b, g, r, a);
+            }
+        }
+    }
 }

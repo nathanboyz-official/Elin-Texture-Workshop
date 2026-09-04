@@ -54,6 +54,8 @@ public enum SpriteTool
     Dropper,
     Line,
     Rectangle,
+    Ellipse,
+    Star,
     ReplaceColour,
 }
 
@@ -94,6 +96,7 @@ public sealed class SpriteEditorViewModel : ObservableObject
     private (int X, int Y)? _lastPoint;
     private bool _fillShapes;
     private bool _lineFromLast;
+    private int _starPoints = 5;
 
     /// <summary>Set from Shift, which joins a stroke to where the last one ended.</summary>
     public bool LineFromLast
@@ -102,7 +105,14 @@ public sealed class SpriteEditorViewModel : ObservableObject
         set => _lineFromLast = value;
     }
 
-    /// <summary>Whether the rectangle tool draws solid or an outline.</summary>
+    /// <summary>How many points the star has.</summary>
+    public int StarPoints
+    {
+        get => _starPoints;
+        set => SetProperty(ref _starPoints, Math.Clamp(value, 3, 12));
+    }
+
+    /// <summary>Whether a shape comes out solid or as an outline.</summary>
     public bool FillShapes
     {
         get => _fillShapes;
@@ -170,7 +180,7 @@ public sealed class SpriteEditorViewModel : ObservableObject
         UndoCommand = new RelayCommand(_ => Undo(), _ => CanUndo);
         RedoCommand = new RelayCommand(_ => Redo(), _ => CanRedo);
         MirrorCommand = new RelayCommand(_ => Edit(s => s.MirrorCell(Direction, Frame)));
-        FlipCommand = new RelayCommand(_ => Edit(s => s.FlipCellVertically(Direction, Frame)));
+
         SendToCommand = new RelayCommand(p => SendTo(p as string));
         ClearCommand = new RelayCommand(_ => Edit(s => s.ClearCell(Direction, Frame)));
         NudgeCommand = new RelayCommand(p => Nudge(p as string));
@@ -180,9 +190,10 @@ public sealed class SpriteEditorViewModel : ObservableObject
             if (p is DyeViewModel { Hex: { } hex }) Colour = hex;
         });
         PickFromScreenCommand = new AsyncRelayCommand(PickFromScreen);
+        SaveColourCommand = new RelayCommand(_ => SaveColour());
         ZoomCommand = new RelayCommand(p =>
         {
-            if (int.TryParse(p as string, out var by)) Zoom = Math.Clamp(Zoom + by, 4, 20);
+            if (int.TryParse(p as string, out var by)) Zoom += by;
         });
         NextCommand = new RelayCommand(_ => GoToMarking());
         JustTheBodyCommand = new RelayCommand(_ => ShowOnlyBody());
@@ -249,13 +260,14 @@ public sealed class SpriteEditorViewModel : ObservableObject
     public RelayCommand UndoCommand { get; }
     public RelayCommand RedoCommand { get; }
     public RelayCommand MirrorCommand { get; }
-    public RelayCommand FlipCommand { get; }
+
     public RelayCommand SendToCommand { get; }
     public RelayCommand ClearCommand { get; }
     public RelayCommand NudgeCommand { get; }
     public RelayCommand CopyFromCommand { get; }
     public RelayCommand ChooseColourCommand { get; }
     public AsyncRelayCommand PickFromScreenCommand { get; }
+    public RelayCommand SaveColourCommand { get; }
     public RelayCommand ZoomCommand { get; }
     public RelayCommand NextCommand { get; }
     public RelayCommand JustTheBodyCommand { get; }
@@ -343,8 +355,16 @@ public sealed class SpriteEditorViewModel : ObservableObject
     public bool IsRectangle => _tool == SpriteTool.Rectangle;
     public bool IsReplace => _tool == SpriteTool.ReplaceColour;
 
+    public bool IsEllipse => _tool == SpriteTool.Ellipse;
+    public bool IsStar => _tool == SpriteTool.Star;
+
     /// <summary>True for tools that are dragged out and only land when released.</summary>
-    private bool IsShape => _tool is SpriteTool.Line or SpriteTool.Rectangle;
+    private bool IsShape =>
+        _tool is SpriteTool.Line or SpriteTool.Rectangle or SpriteTool.Ellipse or SpriteTool.Star;
+
+    /// <summary>Whether the solid switch means anything for the tool in hand.</summary>
+    public bool ShapeCanBeSolid =>
+        _tool is SpriteTool.Rectangle or SpriteTool.Ellipse or SpriteTool.Star;
 
     private void RaiseToolFlags()
     {
@@ -355,6 +375,9 @@ public sealed class SpriteEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLine));
         OnPropertyChanged(nameof(IsRectangle));
         OnPropertyChanged(nameof(IsReplace));
+        OnPropertyChanged(nameof(IsEllipse));
+        OnPropertyChanged(nameof(IsStar));
+        OnPropertyChanged(nameof(ShapeCanBeSolid));
         OnPropertyChanged(nameof(ToolName));
     }
 
@@ -365,6 +388,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
         SpriteTool.Dropper => "Pick colour",
         SpriteTool.Line => "Line",
         SpriteTool.Rectangle => "Rectangle",
+        SpriteTool.Ellipse => "Circle",
+        SpriteTool.Star => "Star",
         SpriteTool.ReplaceColour => "Replace colour",
         _ => "Pencil",
     };
@@ -445,12 +470,18 @@ public sealed class SpriteEditorViewModel : ObservableObject
 
     public string CellName => $"{PccFacing.NameOf(Direction)}, frame {Frame + 1} of {PccComposer.Columns}";
 
+    /// <summary>
+    /// Pixels across per sprite pixel, 2 to 64.
+    ///
+    /// The old ceiling of 20 was too low to place a single pixel confidently on a 32
+    /// wide cell; at 64 one pixel is a comfortable target.
+    /// </summary>
     public int Zoom
     {
         get => _zoom;
         set
         {
-            SetProperty(ref _zoom, Math.Clamp(value, 4, 20));
+            SetProperty(ref _zoom, Math.Clamp(value, 2, 64));
             OnPropertyChanged(nameof(CanvasWidth));
             OnPropertyChanged(nameof(CanvasHeight));
             Redraw();
@@ -492,7 +523,60 @@ public sealed class SpriteEditorViewModel : ObservableObject
     public string Colour
     {
         get => _colour;
-        set { SetProperty(ref _colour, value); OnPropertyChanged(nameof(ColourBrush)); }
+        set
+        {
+            // Typed in with a hash, as anyone writing a hex colour would.
+            var cleaned = value?.TrimStart('#').Trim() ?? string.Empty;
+            if (PccColour.FromHex(cleaned) is null) { OnPropertyChanged(nameof(HexText)); return; }
+
+            SetProperty(ref _colour, cleaned.ToUpperInvariant());
+
+            OnPropertyChanged(nameof(ColourBrush));
+            OnPropertyChanged(nameof(HexText));
+            OnPropertyChanged(nameof(Grey));
+            Remember(_colour);
+        }
+    }
+
+    /// <summary>The colour as it is written, with the hash people expect in front.</summary>
+    public string HexText
+    {
+        get => "#" + _colour;
+        set => Colour = value;
+    }
+
+    /// <summary>
+    /// Straight black to white, because reaching for a grey on a colour wheel means
+    /// dragging to the exact centre and the wheel has no exact centre.
+    /// </summary>
+    public double Grey
+    {
+        get => PccColour.FromHex(_colour) is { } rgb
+               && rgb.R == rgb.G && rgb.G == rgb.B ? rgb.R : double.NaN;
+        set
+        {
+            var level = (byte)Math.Clamp(value, 0, 255);
+            Colour = PccColour.ToHex(level, level, level);
+        }
+    }
+
+    /// <summary>
+    /// The colours used lately, newest first.
+    ///
+    /// Kept because shading is a conversation between three or four tones, and going
+    /// back to the one before last should not mean finding it on the wheel again.
+    /// </summary>
+    public ObservableCollection<DyeViewModel> History { get; } = new();
+
+    private void Remember(string hex)
+    {
+        var existing = History.FirstOrDefault(d =>
+            string.Equals(d.Hex, hex, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null) History.Remove(existing);
+
+        History.Insert(0, new DyeViewModel(hex));
+        while (History.Count > 18) History.RemoveAt(History.Count - 1);
     }
 
     public Brush ColourBrush => PccColour.FromHex(_colour) is { } rgb
@@ -542,7 +626,12 @@ public sealed class SpriteEditorViewModel : ObservableObject
         if (picking || (!Marking && Tool == SpriteTool.Dropper))
         {
             var picked = _sheet.Get(Direction, Frame, x, y);
-            if (picked.A > 0) Colour = PccColour.ToHex(picked.R, picked.G, picked.B);
+
+            // Saying so beats picking nothing in silence, which reads as a broken tool
+            // rather than as an empty pixel.
+            if (picked.A == 0) Status = "Nothing painted there yet.";
+            else { Colour = PccColour.ToHex(picked.R, picked.G, picked.B); Status = null; }
+
             return;
         }
 
@@ -619,10 +708,27 @@ public sealed class SpriteEditorViewModel : ObservableObject
 
         var (fx, fy) = _shapeFrom;
 
-        if (Tool == SpriteTool.Line)
-            _sheet.DrawLine(Direction, Frame, fx, fy, x, y, BrushSize, b, g, r, a);
-        else
-            _sheet.DrawRectangle(Direction, Frame, fx, fy, x, y, BrushSize, FillShapes, b, g, r, a);
+        switch (Tool)
+        {
+            case SpriteTool.Line:
+                _sheet.DrawLine(Direction, Frame, fx, fy, x, y, BrushSize, b, g, r, a);
+                break;
+
+            case SpriteTool.Ellipse:
+                _sheet.DrawEllipse(Direction, Frame, fx, fy, x, y, BrushSize, FillShapes, b, g, r, a);
+                break;
+
+            // Dragged from the middle outwards, the way a star is placed rather than
+            // boxed in: its size and its rotation both come from one gesture.
+            case SpriteTool.Star:
+                _sheet.DrawStar(Direction, Frame, fx, fy, x, y, StarPoints, BrushSize,
+                    FillShapes, b, g, r, a);
+                break;
+
+            default:
+                _sheet.DrawRectangle(Direction, Frame, fx, fy, x, y, BrushSize, FillShapes, b, g, r, a);
+                break;
+        }
 
         _lastPoint = (x, y);
     }
@@ -890,6 +996,26 @@ public sealed class SpriteEditorViewModel : ObservableObject
 
     private static byte Mix(byte channel, byte towards, byte weight) =>
         (byte)(channel + (towards - channel) * (weight > 0 ? 0.18 : 1.0));
+
+    /// <summary>Keeps the current colour, in the same list the creator saves into.</summary>
+    private void SaveColour()
+    {
+        var hex = _colour;
+
+        if (_app.Settings.SavedColours.Any(c => string.Equals(c, hex, StringComparison.OrdinalIgnoreCase)))
+        {
+            Status = $"#{hex} is already saved.";
+            return;
+        }
+
+        _app.Settings.SavedColours.Add(hex);
+        _app.SaveSettings();
+
+        Saved.Clear();
+        foreach (var saved in _app.Settings.SavedColours) Saved.Add(new DyeViewModel(saved));
+
+        Status = $"Saved #{hex}.";
+    }
 
     private async Task PickFromScreen()
     {

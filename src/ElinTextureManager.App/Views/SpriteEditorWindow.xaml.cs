@@ -36,9 +36,33 @@ public partial class SpriteEditorWindow : Window
 
     private static bool Held(Key key) => Keyboard.IsKeyDown(key);
 
+    /// <summary>
+    /// Space-drag anywhere in the canvas area, not only over the sprite itself.
+    ///
+    /// Hooked on the scroll viewer because that is the whole area the eye reads as the
+    /// canvas: at a high zoom the drawing fills it, but at a low one it is a small square
+    /// in the middle and grabbing the space around it did nothing.
+    /// </summary>
+    private void OnAreaDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!Held(Key.Space)) return;
+
+        StartPan(e);
+        e.Handled = true;
+    }
+
+    private void OnAreaMove(object sender, MouseEventArgs e)
+    {
+        if (_panning) Pan(e);
+    }
+
+    private void OnAreaUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_panning) EndPan();
+    }
+
     private void OnCanvasDown(object sender, MouseButtonEventArgs e)
     {
-        // Space turns the canvas into something to drag, as it does everywhere else.
         if (Held(Key.Space)) { StartPan(e); return; }
 
         _drawing = true;
@@ -96,7 +120,10 @@ public partial class SpriteEditorWindow : Window
         var before = e.GetPosition(CanvasHost);
         var was = _model.Zoom;
 
-        _model.Zoom = Math.Clamp(was + (e.Delta > 0 ? 2 : -2), 2, 32);
+        // A step that grows with the zoom, so 4x to 48x is a flick rather than twenty
+        // notches, while staying fine-grained where it matters.
+        var step = Math.Max(1, was / 6);
+        _model.Zoom = was + (e.Delta > 0 ? step : -step);
         if (_model.Zoom == was) { e.Handled = true; return; }
 
         // Where that pixel has moved to once the canvas resized, and how far the view
@@ -118,7 +145,9 @@ public partial class SpriteEditorWindow : Window
         _panOffsetX = CanvasScroll.HorizontalOffset;
         _panOffsetY = CanvasScroll.VerticalOffset;
 
-        CanvasHost.CaptureMouse();
+        // Captured on the scroll viewer, so a drag that starts beside the sprite keeps
+        // working once it passes over it.
+        CanvasScroll.CaptureMouse();
         Cursor = Cursors.ScrollAll;
     }
 
@@ -133,7 +162,7 @@ public partial class SpriteEditorWindow : Window
     private void EndPan()
     {
         _panning = false;
-        CanvasHost.ReleaseMouseCapture();
+        CanvasScroll.ReleaseMouseCapture();
         Cursor = Cursors.Arrow;
     }
 
@@ -170,6 +199,8 @@ public partial class SpriteEditorWindow : Window
             case Key.I: _model.Tool = SpriteTool.Dropper; break;
             case Key.L: _model.Tool = SpriteTool.Line; break;
             case Key.U: _model.Tool = SpriteTool.Rectangle; break;
+            case Key.C: _model.Tool = SpriteTool.Ellipse; break;
+            case Key.S: _model.Tool = SpriteTool.Star; break;
             case Key.R: _model.Tool = SpriteTool.ReplaceColour; break;
 
             case Key.OemOpenBrackets: _model.BrushSize--; break;

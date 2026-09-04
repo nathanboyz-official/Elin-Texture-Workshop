@@ -105,6 +105,20 @@
                 <Image Source="/Tools/tool_rect.png" Width="22" Height="22"
                        RenderOptions.BitmapScalingMode="NearestNeighbor" />
             </RadioButton>
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool" ToolTip="Circle  (C)"
+                         IsChecked="{Binding IsEllipse, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="Ellipse"
+                         Visibility="{Binding Painting, Converter={StaticResource BoolToVis}}">
+                <Image Source="/Tools/tool_circle.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
+            <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool" ToolTip="Star  (S)"
+                         IsChecked="{Binding IsStar, Mode=OneWay}"
+                         Command="{Binding PickToolCommand}" CommandParameter="Star"
+                         Visibility="{Binding Painting, Converter={StaticResource BoolToVis}}">
+                <Image Source="/Tools/tool_star.png" Width="22" Height="22"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            </RadioButton>
             <RadioButton Style="{StaticResource ToolChip}" GroupName="Tool"
                          ToolTip="Replace every pixel of one colour  (R)"
                          IsChecked="{Binding IsReplace, Mode=OneWay}"
@@ -115,9 +129,16 @@
             </RadioButton>
 
             <CheckBox Content="Solid" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"
-                      ToolTip="Rectangles come out filled rather than outlined"
+                      ToolTip="Shapes come out filled rather than outlined"
                       IsChecked="{Binding FillShapes}"
-                      Visibility="{Binding IsRectangle, Converter={StaticResource BoolToVis}}" />
+                      Visibility="{Binding ShapeCanBeSolid, Converter={StaticResource BoolToVis}}" />
+
+            <TextBlock Text="POINTS" Style="{StaticResource SectionHeader}"
+                       VerticalAlignment="Center" Margin="10,0,6,0"
+                       Visibility="{Binding IsStar, Converter={StaticResource BoolToVis}}" />
+            <Slider Width="66" Minimum="3" Maximum="12" TickFrequency="1" IsSnapToTickEnabled="True"
+                    VerticalAlignment="Center" Value="{Binding StarPoints}"
+                    Visibility="{Binding IsStar, Converter={StaticResource BoolToVis}}" />
 
             <TextBlock Text="SIZE" Style="{StaticResource SectionHeader}"
                        VerticalAlignment="Center" Margin="12,0,6,0" />
@@ -167,7 +188,11 @@
                 Margin="0,0,12,0">
             <ScrollViewer x:Name="CanvasScroll"
                           HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                          PreviewMouseWheel="OnCanvasWheel">
+                          PreviewMouseWheel="OnCanvasWheel"
+                          Background="Transparent"
+                          PreviewMouseLeftButtonDown="OnAreaDown"
+                          PreviewMouseMove="OnAreaMove"
+                          PreviewMouseLeftButtonUp="OnAreaUp">
                 <Grid x:Name="CanvasHost" HorizontalAlignment="Center" VerticalAlignment="Center"
                       Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}"
                       Background="{StaticResource CheckerboardBrush}"
@@ -245,20 +270,68 @@
                         <controls:ColourWheel Margin="0,8,0,10"
                                               Hex="{Binding Colour, Mode=TwoWay}" />
 
+                        <!-- Black to white on its own track: the exact centre of a wheel
+                             is the one place a mouse cannot land reliably, and grey is
+                             most of what these sprites are made of. -->
+                        <Border Height="18" CornerRadius="3" Margin="0,2,0,8"
+                                BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#000000" Offset="0" />
+                                    <GradientStop Color="#FFFFFF" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Slider Minimum="0" Maximum="255" Margin="0,0,0,10"
+                                ToolTip="Straight greys, black through white"
+                                Value="{Binding Grey}" />
+
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <Border Width="34" Height="24" CornerRadius="3" Margin="0,0,8,0"
                                     Background="{Binding ColourBrush}"
                                     BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1" />
-                            <TextBox Width="76" Padding="5,3" FontFamily="Consolas" FontSize="11"
-                                     Text="{Binding Colour, UpdateSourceTrigger=LostFocus}"
+                            <TextBox Width="82" Padding="5,3" FontFamily="Consolas" FontSize="11"
+                                     Text="{Binding HexText, UpdateSourceTrigger=LostFocus}"
                                      Background="{StaticResource SurfaceSunkenBrush}"
                                      Foreground="{StaticResource TextPrimaryBrush}"
                                      BorderBrush="{StaticResource BorderBrush}" />
-                            <Button Content="Pick" Style="{StaticResource SubtleButton}"
-                                    Padding="7,2" FontSize="10.5" Margin="6,0,0,0"
+                        </StackPanel>
+
+                        <UniformGrid Columns="2" Margin="0,0,0,10">
+                            <Button Content="Pick off screen" Style="{StaticResource SubtleButton}"
+                                    Padding="7,2" FontSize="10.5" Margin="0,0,3,0"
                                     ToolTip="Take a colour from anywhere on screen"
                                     Command="{Binding PickFromScreenCommand}" />
-                        </StackPanel>
+                            <Button Content="Save it" Style="{StaticResource SubtleButton}"
+                                    Padding="7,2" FontSize="10.5" Margin="3,0,0,0"
+                                    ToolTip="Keep this colour for later"
+                                    Command="{Binding SaveColourCommand}" />
+                        </UniformGrid>
+
+                        <TextBlock Text="RECENT" FontSize="9" Margin="0,0,0,4"
+                                   Foreground="{StaticResource TextMutedBrush}" />
+                        <ItemsControl ItemsSource="{Binding History}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Width="22" Height="22" Margin="0,0,4,4" Padding="0"
+                                            ToolTip="{Binding Label}"
+                                            Command="{Binding DataContext.ChooseColourCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border CornerRadius="3" Background="{Binding Swatch}"
+                                                        BorderBrush="{StaticResource BorderStrongBrush}"
+                                                        BorderThickness="1" />
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
                         <ItemsControl ItemsSource="{Binding Greys}">
                             <ItemsControl.ItemsPanel>
@@ -338,53 +411,63 @@
                 <!-- === THIS CELL === -->
                 <Border Style="{StaticResource Card}" Padding="12" Margin="0,10,0,0">
                     <StackPanel>
-                        <TextBlock Text="THIS CELL" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Text="MOVE" Style="{StaticResource SectionHeader}" />
+                        <Grid Margin="0,7,0,0" HorizontalAlignment="Left">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <UniformGrid Columns="4" Margin="0,8,0,0">
-                            <Button Content="&#x2190;" Style="{StaticResource SubtleButton}" Margin="0,0,3,0"
-                                    ToolTip="Nudge left"
-                                    Command="{Binding NudgeCommand}" CommandParameter="left" />
-                            <Button Content="&#x2192;" Style="{StaticResource SubtleButton}" Margin="0,0,3,0"
-                                    ToolTip="Nudge right"
-                                    Command="{Binding NudgeCommand}" CommandParameter="right" />
-                            <Button Content="&#x2191;" Style="{StaticResource SubtleButton}" Margin="0,0,3,0"
-                                    ToolTip="Nudge up"
+                            <!-- Laid out the way they point, rather than as a row of arrows. -->
+                            <Button Grid.Row="0" Grid.Column="1" Content="&#x2191;" Width="34"
+                                    Style="{StaticResource SubtleButton}" Padding="0,3"
                                     Command="{Binding NudgeCommand}" CommandParameter="up" />
-                            <Button Content="&#x2193;" Style="{StaticResource SubtleButton}"
-                                    ToolTip="Nudge down"
+                            <Button Grid.Row="1" Grid.Column="0" Content="&#x2190;" Width="34"
+                                    Style="{StaticResource SubtleButton}" Padding="0,3" Margin="0,3,3,0"
+                                    Command="{Binding NudgeCommand}" CommandParameter="left" />
+                            <Button Grid.Row="1" Grid.Column="1" Content="&#x2193;" Width="34"
+                                    Style="{StaticResource SubtleButton}" Padding="0,3" Margin="0,3,0,0"
                                     Command="{Binding NudgeCommand}" CommandParameter="down" />
-                        </UniformGrid>
+                            <Button Grid.Row="1" Grid.Column="2" Content="&#x2192;" Width="34"
+                                    Style="{StaticResource SubtleButton}" Padding="0,3" Margin="3,3,0,0"
+                                    Command="{Binding NudgeCommand}" CommandParameter="right" />
 
-                        <Button Content="Mirror" Style="{StaticResource SubtleButton}"
-                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                                ToolTip="Flip this cell left to right"
-                                Command="{Binding MirrorCommand}" />
-                        <Button Content="Flip upside down" Style="{StaticResource SubtleButton}"
-                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                                Command="{Binding FlipCommand}" />
-                        <Button Content="Copy the previous frame in" Style="{StaticResource SubtleButton}"
-                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                                Command="{Binding CopyFromCommand}" CommandParameter="previousFrame" />
+                            <Button Grid.Row="0" Grid.Column="3" Content="Mirror" Margin="10,0,0,0"
+                                    Style="{StaticResource SubtleButton}" Padding="8,3"
+                                    ToolTip="Flip this cell left to right"
+                                    Command="{Binding MirrorCommand}" />
+                            <Button Grid.Row="1" Grid.Column="3" Content="Clear" Margin="10,3,0,0"
+                                    Style="{StaticResource SubtleButton}" Padding="8,3"
+                                    ToolTip="Empty this cell"
+                                    Command="{Binding ClearCommand}" />
+                        </Grid>
 
-                        <TextBlock Text="SEND THIS CELL TO" Style="{StaticResource SectionHeader}"
-                                   Margin="0,12,0,6" />
-                        <UniformGrid Columns="2">
-                            <Button Content="Every frame" Style="{StaticResource SubtleButton}"
-                                    Margin="0,0,3,0"
+                        <TextBlock Text="COPY THIS CELL INTO" Style="{StaticResource SectionHeader}"
+                                   Margin="0,14,0,6" />
+                        <UniformGrid Columns="3">
+                            <Button Content="Frames" Style="{StaticResource SubtleButton}"
+                                    Margin="0,0,3,0" Padding="4,3"
                                     ToolTip="The other three frames of this facing"
                                     Command="{Binding SendToCommand}" CommandParameter="frames" />
-                            <Button Content="Every view" Style="{StaticResource SubtleButton}"
-                                    Margin="3,0,0,0"
+                            <Button Content="Views" Style="{StaticResource SubtleButton}"
+                                    Margin="3,0,3,0" Padding="4,3"
                                     ToolTip="The same frame on all four facings"
                                     Command="{Binding SendToCommand}" CommandParameter="views" />
+                            <Button Content="All 16" Style="{StaticResource SubtleButton}"
+                                    Margin="3,0,0,0" Padding="4,3"
+                                    ToolTip="Every cell of the sheet"
+                                    Command="{Binding SendToCommand}" CommandParameter="all" />
                         </UniformGrid>
-                        <Button Content="The whole sheet" Style="{StaticResource SubtleButton}"
+                        <Button Content="Take the previous frame" Style="{StaticResource SubtleButton}"
                                 HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                                ToolTip="All sixteen cells"
-                                Command="{Binding SendToCommand}" CommandParameter="all" />
-                        <Button Content="Clear this cell" Style="{StaticResource SubtleButton}"
-                                HorizontalAlignment="Stretch" Margin="0,6,0,0"
-                                Command="{Binding ClearCommand}" />
+                                ToolTip="Copy the frame before this one in, to draw the next step from"
+                                Command="{Binding CopyFromCommand}" CommandParameter="previousFrame" />
                     </StackPanel>
                 </Border>
 
@@ -423,7 +506,7 @@
                                    TextWrapping="Wrap"><Run
                             Text="B pencil   E eraser   G fill" /><LineBreak /><Run
                             Text="I pick     L line     U box" /><LineBreak /><Run
-                            Text="R replace a colour" /><LineBreak /><Run
+                            Text="C circle   S star     R replace" /><LineBreak /><Run
                             Text="[ ] brush size" /><LineBreak /><Run
                             Text="Ctrl+Z undo, Ctrl+Shift+Z redo" /><LineBreak /><Run
                             Text="Wheel zooms, Space drags" /><LineBreak /><Run
