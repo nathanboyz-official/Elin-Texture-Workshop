@@ -60,4 +60,32 @@ public sealed class TraySettingsTests
         Assert.True(loaded.MinimiseToTray);
         Assert.False(loaded.TrayHintShown);
     }
+
+    [Fact]
+    public void Saved_colours_start_empty_and_survive_a_restart()
+    {
+        var path = TempFile();
+
+        Assert.Empty(new AppSettings().SavedColours);
+
+        var settings = new AppSettings();
+        settings.SavedColours.Add("D32349");
+        settings.SavedColours.Add("306369");
+        settings.Save(path);
+
+        var reloaded = AppSettings.Load(path);
+
+        Assert.Equal(new[] { "D32349", "306369" }, reloaded.SavedColours);
+    }
+
+    [Fact]
+    public void A_settings_file_from_before_saved_colours_existed_loads_with_none()
+    {
+        var path = TempFile();
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, """{"MinimiseToTray":true}""");
+
+        Assert.NotNull(AppSettings.Load(path).SavedColours);
+        Assert.Empty(AppSettings.Load(path).SavedColours);
+    }
 }

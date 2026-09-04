@@ -115,8 +115,10 @@
                                VerticalAlignment="Center" />
                 </Grid>
 
-                <!-- Dye for the chosen slot -->
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                <!-- Dye for the chosen slot. A WrapPanel because the swatches plus the
+                     user's saved colours outgrow one line, and the saved ones were being
+                     pushed off the right edge where nobody would ever see them. -->
+                <WrapPanel Grid.Row="1" Margin="0,0,0,10" Orientation="Horizontal">
                     <ToggleButton x:Name="WheelToggle" Width="22" Height="22" Margin="0,0,8,0"
                                   Padding="0" ToolTip="Colour wheel">
                         <ToggleButton.Template>
@@ -146,10 +148,18 @@
                             ToolTip="A random colour for this slot"
                             Command="{Binding RandomSlotColourCommand}" />
                     <Button Content="Roll part" Style="{StaticResource SubtleButton}"
-                            Padding="7,2" FontSize="10.5" Margin="0,0,10,0"
+                            Padding="7,2" FontSize="10.5" Margin="0,0,6,0"
                             ToolTip="A random part for this slot"
                             Command="{Binding RandomSlotPartCommand}" />
-                    <ItemsControl ItemsSource="{Binding Dyes}">
+                    <Button Content="Pick" Style="{StaticResource SubtleButton}"
+                            Padding="7,2" FontSize="10.5" Margin="0,0,6,0"
+                            ToolTip="Take a colour from anywhere on screen"
+                            Command="{Binding PickFromScreenCommand}" />
+                    <Button Content="Save" Style="{StaticResource SubtleButton}"
+                            Padding="7,2" FontSize="10.5" Margin="0,0,10,0"
+                            ToolTip="Keep this colour for later"
+                            Command="{Binding SaveColourCommand}" />
+                    <ItemsControl ItemsSource="{Binding Dyes}" Margin="0,0,0,4">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
@@ -183,7 +193,56 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </StackPanel>
+
+                    <!-- Kept colours, behind their own divider so it is clear which ones
+                         are the user's and which came with the application. -->
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding HasSavedDyes, Converter={StaticResource BoolToVis}}">
+                        <Border Width="1" Margin="8,2,8,2"
+                                Background="{StaticResource BorderStrongBrush}" />
+                        <TextBlock Text="SAVED" FontSize="9" VerticalAlignment="Center"
+                                   Margin="0,0,7,0"
+                                   Foreground="{StaticResource TextMutedBrush}" />
+
+                        <ItemsControl ItemsSource="{Binding SavedDyes}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Width="20" Height="20" Margin="0,0,4,0" Padding="0"
+                                            ToolTip="{Binding Label}"
+                                            Command="{Binding DataContext.ChooseDyeCommand,
+                                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Remove this saved colour"
+                                                          Command="{Binding PlacementTarget.DataContext.ForgetColourCommand,
+                                                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding}" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Chip" CornerRadius="3"
+                                                        Background="{Binding Swatch}"
+                                                        BorderBrush="{StaticResource BorderStrongBrush}"
+                                                        BorderThickness="1" />
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Chip" Property="BorderBrush"
+                                                                Value="{StaticResource GoldBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </WrapPanel>
 
                 <!-- The wheel, folded away until asked for: the swatches cover most
                      choices and a picker sitting open costs the parts grid its room. -->

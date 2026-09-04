@@ -186,6 +186,11 @@ public sealed class DyeViewModel
     /// <summary>Null means the part is drawn as its author coloured it.</summary>
     public string? Hex { get; }
 
+    /// <summary>True for colours the user added, which are the only removable ones.</summary>
+    public bool CanForget { get; init; }
+
+    public string Label => Hex is null ? "as drawn" : "#" + Hex;
+
     public Brush Swatch => Hex is null
         ? Brushes.Transparent
         : new SolidColorBrush(DressUpSlotViewModel.FromHex(Hex));
@@ -243,6 +248,9 @@ public sealed class DressUpViewModel : ObservableObject
         RandomColoursCommand = new RelayCommand(_ => RandomColours());
         RandomSlotColourCommand = new RelayCommand(_ => RandomSlotColour());
         RandomSlotPartCommand = new RelayCommand(_ => RandomSlotPart());
+        PickFromScreenCommand = new AsyncRelayCommand(PickFromScreen);
+        SaveColourCommand = new RelayCommand(_ => SaveColour(), _ => SlotColour is not null);
+        ForgetColourCommand = new RelayCommand(p => ForgetColour(p as DyeViewModel));
         NewCharacterCommand = new RelayCommand(_ => NewCharacter());
         LoadStyleCommand = new RelayCommand(p => Load(p as SavedStyleViewModel));
         SaveCommand = new RelayCommand(_ => Save(), _ => CanSave);
@@ -265,12 +273,18 @@ public sealed class DressUpViewModel : ObservableObject
         ApplyWalkSpeed();
 
         foreach (var hex in Palette) Dyes.Add(new DyeViewModel(hex));
+        RefreshSavedDyes();
     }
 
     public ObservableCollection<DressUpSlotViewModel> Slots { get; } = new();
     public ObservableCollection<PccPartViewModel> Parts { get; } = new();
     public ObservableCollection<SavedStyleViewModel> SavedStyles { get; } = new();
     public ObservableCollection<DyeViewModel> Dyes { get; } = new();
+
+    /// <summary>Colours the user kept, shown after the built-in ones under their own heading.</summary>
+    public ObservableCollection<DyeViewModel> SavedDyes { get; } = new();
+
+    public bool HasSavedDyes => SavedDyes.Count > 0;
 
     public RelayCommand SelectSlotCommand { get; }
     public RelayCommand ChoosePartCommand { get; }
@@ -280,6 +294,9 @@ public sealed class DressUpViewModel : ObservableObject
     public RelayCommand RandomColoursCommand { get; }
     public RelayCommand RandomSlotColourCommand { get; }
     public RelayCommand RandomSlotPartCommand { get; }
+    public AsyncRelayCommand PickFromScreenCommand { get; }
+    public RelayCommand SaveColourCommand { get; }
+    public RelayCommand ForgetColourCommand { get; }
     public RelayCommand NewCharacterCommand { get; }
     public RelayCommand LoadStyleCommand { get; }
     public RelayCommand SaveCommand { get; }
@@ -654,6 +671,66 @@ public sealed class DressUpViewModel : ObservableObject
     }
 
     private void RandomSlotColour() => ApplyColour(PccColour.RandomHex(_random), true);
+
+    /// <summary>Takes a colour from anywhere on screen, including from the game itself.</summary>
+    private async Task PickFromScreen()
+    {
+        if (SelectedSlot is null) return;
+
+        var owner = System.Windows.Application.Current.MainWindow;
+        if (owner is null) return;
+
+        var picked = await ScreenColourPicker.PickAsync(owner);
+        if (picked is null) return;
+
+        ApplyColour(picked, true);
+        StatusMessage = $"Picked #{picked} off the screen.";
+    }
+
+    /// <summary>Keeps the slot's colour, so it is there next time and next launch.</summary>
+    private void SaveColour()
+    {
+        if (SlotColour is not { } hex) return;
+
+        if (_app.Settings.SavedColours.Any(c =>
+                string.Equals(c, hex, StringComparison.OrdinalIgnoreCase)))
+        {
+            StatusMessage = $"#{hex} is already saved.";
+            return;
+        }
+
+        _app.Settings.SavedColours.Add(hex);
+        _app.SaveSettings();
+
+        RefreshSavedDyes();
+        StatusMessage = $"Saved #{hex}.";
+    }
+
+    /// <summary>
+    /// Removes a kept colour. Only ever a kept one: the built-in palette has no remove,
+    /// because a user who empties it has no way to put it back.
+    /// </summary>
+    private void ForgetColour(DyeViewModel? dye)
+    {
+        if (dye?.Hex is not { } hex || !dye.CanForget) return;
+
+        _app.Settings.SavedColours.RemoveAll(c =>
+            string.Equals(c, hex, StringComparison.OrdinalIgnoreCase));
+
+        _app.SaveSettings();
+        RefreshSavedDyes();
+        StatusMessage = $"Removed #{hex} from your saved colours.";
+    }
+
+    private void RefreshSavedDyes()
+    {
+        SavedDyes.Clear();
+
+        foreach (var hex in _app.Settings.SavedColours)
+            SavedDyes.Add(new DyeViewModel(hex) { CanForget = true });
+
+        OnPropertyChanged(nameof(HasSavedDyes));
+    }
 
     /// <summary>Rolls a different part for the slot being edited, keeping its colour.</summary>
     private void RandomSlotPart()

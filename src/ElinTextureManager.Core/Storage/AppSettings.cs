@@ -71,6 +71,14 @@ public sealed class AppSettings
     /// </summary>
     public bool MinimiseToTray { get; set; } = true;
 
+    /// <summary>
+    /// Colours the user has kept, shown after the built-in palette.
+    ///
+    /// Six hex digits each, the same as a style stores. Theirs to remove; the built-in
+    /// ones are not.
+    /// </summary>
+    public List<string> SavedColours { get; set; } = new();
+
     /// <summary>Whether the "it is still running down here" hint has been shown.</summary>
     public bool TrayHintShown { get; set; }
 
