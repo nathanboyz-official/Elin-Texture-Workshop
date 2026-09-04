@@ -798,10 +798,18 @@ public sealed class DressUpViewModel : ObservableObject
             return;
         }
 
+        // What the character is actually wearing, so the editor can offer to take any of
+        // it off - a hat sitting over the hair being drawn is worse than no reference.
+        var worn = PccSlots.All
+            .Where(s => _style.Get(s.Layer) is not null)
+            .Select(s => (s.Layer, s.Label))
+            .ToList();
+
         var editor = new SpriteEditorViewModel(_app, part.Part, sheet, Preview,
             id => _library.Resolve(part.Layer, new PccChoice { Set = part.Part.Set, Id = id }) is not null
                   || PccPartWriter.Exists(_app.Paths, part.Part.Set, part.Layer, id),
-            (direction, frame) => ComposeAsync(direction, frame, scale: 10));
+            (direction, frame, hidden) => ComposeAsync(direction, frame, scale: 10, hidden),
+            worn);
 
         var window = new Views.SpriteEditorWindow(editor)
         {
@@ -1059,10 +1067,15 @@ public sealed class DressUpViewModel : ObservableObject
     /// Draws the character at a given facing and frame. Public so the sprite editor can
     /// keep its backdrop pointing the same way as the cell being edited.
     /// </summary>
-    public Task<BitmapSource?> ComposeAsync(int direction, int frame, int scale)
+    public Task<BitmapSource?> ComposeAsync(int direction, int frame, int scale,
+        IReadOnlySet<string>? hidden = null)
     {
         var (found, _) = _library.ResolveStyle(_style);
-        var wanted = found.Select(f => (f.Layer, f.Part.FullPath, f.Choice.Rgb())).ToList();
+
+        var wanted = found
+            .Where(f => hidden is null || !hidden.Contains(f.Layer))
+            .Select(f => (f.Layer, f.Part.FullPath, f.Choice.Rgb()))
+            .ToList();
 
         return Task.Run(() =>
         {

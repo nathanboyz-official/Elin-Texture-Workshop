@@ -9,6 +9,42 @@ using ElinTextureManager.Core.Pcc;
 
 namespace ElinTextureManager.App.ViewModels;
 
+/// <summary>
+/// One piece the character behind is wearing, and whether it is shown.
+///
+/// A hat drawn over the hair being edited is worse than no reference at all, so every
+/// piece can be taken off independently.
+/// </summary>
+public sealed class BackdropPieceViewModel : ObservableObject
+{
+    private bool _visible;
+
+    public BackdropPieceViewModel(string layer, string label, bool visible)
+    {
+        Layer = layer;
+        Label = label;
+        _visible = visible;
+    }
+
+    public string Layer { get; }
+    public string Label { get; }
+
+    public bool Visible
+    {
+        get => _visible;
+        set { if (SetProperty(ref _visible, value)) Changed?.Invoke(); }
+    }
+
+    /// <summary>Sets it without announcing, for changing several at once.</summary>
+    public void SetQuietly(bool visible)
+    {
+        _visible = visible;
+        OnPropertyChanged(nameof(Visible));
+    }
+
+    public event Action? Changed;
+}
+
 /// <summary>What a click on the canvas does.</summary>
 public enum SpriteTool
 {
@@ -43,7 +79,7 @@ public sealed class SpriteEditorViewModel : ObservableObject
     private readonly List<(bool Mask, byte[] Data)> _redo = new();
 
     private readonly PccDyeMask _mask;
-    private readonly Func<int, int, Task<BitmapSource?>>? _renderCharacter;
+    private readonly Func<int, int, IReadOnlySet<string>, Task<BitmapSource?>>? _renderCharacter;
 
     private PccSheet _sheet;
     private BitmapSource? _canvas;
@@ -65,7 +101,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
 
     public SpriteEditorViewModel(AppServices app, PccFile source, PccSheet sheet,
         BitmapSource? character, Func<string, bool> nameTaken,
-        Func<int, int, Task<BitmapSource?>>? renderCharacter = null)
+        Func<int, int, IReadOnlySet<string>, Task<BitmapSource?>>? renderCharacter = null,
+        IReadOnlyList<(string Layer, string Label)>? worn = null)
     {
         _app = app;
         Source = source;
@@ -75,6 +112,18 @@ public sealed class SpriteEditorViewModel : ObservableObject
         _renderCharacter = renderCharacter;
 
         SaveId = PccPartName.Available(source.Id, nameTaken);
+
+        foreach (var (layer, label) in worn ?? Array.Empty<(string, string)>())
+        {
+            // The layer being edited starts hidden. The canvas already draws the version
+            // being worked on; leaving the old one underneath means drawing over a near
+            // copy of itself and wondering which lines are yours.
+            var piece = new BackdropPieceViewModel(layer, label,
+                visible: !string.Equals(layer, source.Layer, StringComparison.OrdinalIgnoreCase));
+
+            piece.Changed += RefreshCharacter;
+            Behind.Add(piece);
+        }
 
         // Paint in colour: a part is easier to draw as it should look than as the grey
         // it will be stored as. Which of it follows the character's dye is decided after.
@@ -108,6 +157,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
             if (int.TryParse(p as string, out var by)) Zoom = Math.Clamp(Zoom + by, 4, 20);
         });
         NextCommand = new RelayCommand(_ => GoToMarking());
+        JustTheBodyCommand = new RelayCommand(_ => ShowOnlyBody());
+        ShowEverythingCommand = new RelayCommand(_ => ShowEverything());
         BackCommand = new RelayCommand(_ => Marking = false);
         MarkAllCommand = new RelayCommand(_ =>
         {
@@ -123,9 +174,18 @@ public sealed class SpriteEditorViewModel : ObservableObject
         });
 
         Redraw();
+
+        // Draws the backdrop without the layer being edited, which the constructor's
+        // ready-made picture still has in it.
+        RefreshCharacter();
     }
 
     public PccFile Source { get; }
+
+    /// <summary>Each piece the character behind wears, with its own switch.</summary>
+    public ObservableCollection<BackdropPieceViewModel> Behind { get; } = new();
+
+    public bool HasBehind => Behind.Count > 0;
 
     public ObservableCollection<DyeViewModel> Greys { get; } = new();
     public ObservableCollection<DyeViewModel> Saved { get; } = new();
@@ -141,6 +201,8 @@ public sealed class SpriteEditorViewModel : ObservableObject
     public AsyncRelayCommand PickFromScreenCommand { get; }
     public RelayCommand ZoomCommand { get; }
     public RelayCommand NextCommand { get; }
+    public RelayCommand JustTheBodyCommand { get; }
+    public RelayCommand ShowEverythingCommand { get; }
     public RelayCommand BackCommand { get; }
     public RelayCommand MarkAllCommand { get; }
     public RelayCommand MarkNoneCommand { get; }
@@ -273,11 +335,29 @@ public sealed class SpriteEditorViewModel : ObservableObject
     {
         if (_renderCharacter is null) return;
 
-        var rendered = await _renderCharacter(Direction, Frame);
-        if (rendered is null) return;
+        var hidden = Behind.Where(p => !p.Visible).Select(p => p.Layer)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var rendered = await _renderCharacter(Direction, Frame, hidden);
 
         _character = rendered;
         OnPropertyChanged(nameof(Character));
+    }
+
+    /// <summary>Strips the character back to its body, for when everything is in the way.</summary>
+    private void ShowOnlyBody()
+    {
+        foreach (var piece in Behind)
+            piece.SetQuietly(string.Equals(piece.Layer, PccSlots.BodyLayer,
+                StringComparison.OrdinalIgnoreCase));
+
+        RefreshCharacter();
+    }
+
+    private void ShowEverything()
+    {
+        foreach (var piece in Behind) piece.SetQuietly(true);
+        RefreshCharacter();
     }
 
     public string CellName => $"{PccFacing.NameOf(Direction)}, frame {Frame + 1} of {PccComposer.Columns}";
