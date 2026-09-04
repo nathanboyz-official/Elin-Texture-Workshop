@@ -276,6 +276,44 @@
 
     <!-- Secondary actions. Borderless until pointed at, so a dense row of them
          does not read as a wall of boxes. -->
+    <!--
+        The turn arrows on the character preview. Small and self-contained, sitting over
+        the picture the way the game's own do, rather than columns that take width away
+        from the character.
+    -->
+    <Style x:Key="TurnButton" TargetType="Button">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Shell" CornerRadius="{StaticResource RadiusControl}"
+                            Background="{StaticResource SurfaceRaisedBrush}"
+                            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                            Opacity="0.85">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Shell" Property="Opacity" Value="1" />
+                            <Setter TargetName="Shell" Property="BorderBrush"
+                                    Value="{StaticResource GoldBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Shell" Property="Background"
+                                    Value="{StaticResource GoldToneBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="SubtleButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />

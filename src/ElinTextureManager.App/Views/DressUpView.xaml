@@ -291,31 +291,24 @@
                         <TextBlock Text="THE CHARACTER" Style="{StaticResource SectionHeader}" />
 
                         <Grid Margin="0,10,0,0" Height="290">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <Button Grid.Column="0" Content="&#x25C0;" Width="26"
-                                          Style="{StaticResource SubtleButton}" Padding="0"
-                                          VerticalAlignment="Stretch" FontSize="13"
-                                          ToolTip="Turn left"
-                                    Command="{Binding TurnCommand}" CommandParameter="-1" />
-
-                            <Border Grid.Column="1" Margin="6,0"
-                                    CornerRadius="{StaticResource RadiusControl}"
+                            <Border CornerRadius="{StaticResource RadiusControl}"
                                     Background="{StaticResource CheckerboardBrush}"
                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                                 <Image Source="{Binding Preview}" Stretch="None"
                                        RenderOptions.BitmapScalingMode="NearestNeighbor" />
                             </Border>
 
-                            <Button Grid.Column="2" Content="&#x25B6;" Width="26"
-                                          Style="{StaticResource SubtleButton}" Padding="0"
-                                          VerticalAlignment="Stretch" FontSize="13"
-                                          ToolTip="Turn right"
+                            <!-- Small buttons sitting over the picture, as the game has
+                                 them, rather than columns that squeeze the character. -->
+                            <Button Style="{StaticResource TurnButton}" Content="&#x25C0;"
+                                    HorizontalAlignment="Left" Margin="6,0,0,0"
+                                    ToolTip="Turn one quarter, this way"
                                     Command="{Binding TurnCommand}" CommandParameter="1" />
+
+                            <Button Style="{StaticResource TurnButton}" Content="&#x25B6;"
+                                    HorizontalAlignment="Right" Margin="0,0,6,0"
+                                    ToolTip="Turn one quarter, the other way"
+                                    Command="{Binding TurnCommand}" CommandParameter="-1" />
                         </Grid>
 
                         <TextBlock Style="{StaticResource SectionHeader}" Margin="0,12,0,6">
@@ -323,6 +316,17 @@
                             <Run Text="{Binding FacingName, Mode=OneWay}"
                                  Foreground="{StaticResource GoldBrush}" />
                         </TextBlock>
+
+                        <UniformGrid Columns="4">
+                            <RadioButton Content="Front" GroupName="Face" Margin="0,0,4,0" FontSize="11"
+                                         IsChecked="{Binding IsFacingFront, Mode=TwoWay}" />
+                            <RadioButton Content="Left" GroupName="Face" Margin="0,0,4,0" FontSize="11"
+                                         IsChecked="{Binding IsFacingLeft, Mode=TwoWay}" />
+                            <RadioButton Content="Right" GroupName="Face" Margin="0,0,4,0" FontSize="11"
+                                         IsChecked="{Binding IsFacingRight, Mode=TwoWay}" />
+                            <RadioButton Content="Back" GroupName="Face" FontSize="11"
+                                         IsChecked="{Binding IsFacingBack, Mode=TwoWay}" />
+                        </UniformGrid>
                         <Grid Margin="0,12,0,0">
                             <CheckBox Content="Walk" IsChecked="{Binding Animate}" VerticalAlignment="Center" />
                             <Slider Width="130" HorizontalAlignment="Right" VerticalAlignment="Center"

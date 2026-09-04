@@ -253,9 +253,11 @@ public sealed class DressUpViewModel : ObservableObject
         {
             if (int.TryParse(p as string, out var d)) Direction = d;
         });
+        // Turning follows the circle round the character rather than the order the rows
+        // sit in the file, so an arrow never flips straight from one profile to the other.
         TurnCommand = new RelayCommand(p =>
         {
-            if (int.TryParse(p as string, out var by)) Direction += by;
+            if (int.TryParse(p as string, out var by)) Direction = PccFacing.Turn(Direction, by);
         });
 
         _animation = new DispatcherTimer();
@@ -334,18 +336,43 @@ public sealed class DressUpViewModel : ObservableObject
             foreach (var part in Parts) part.FacingChanged();
 
             OnPropertyChanged(nameof(FacingName));
+            OnPropertyChanged(nameof(IsFacingFront));
+            OnPropertyChanged(nameof(IsFacingLeft));
+            OnPropertyChanged(nameof(IsFacingRight));
+            OnPropertyChanged(nameof(IsFacingBack));
             Render();
         }
     }
 
-    /// <summary>The four rows of a sheet, in the order the format stores them.</summary>
-    public string FacingName => Direction switch
+    public string FacingName => PccFacing.NameOf(Direction);
+
+    /// <summary>
+    /// The facing buttons, bound both ways so the arrows and the buttons cannot
+    /// disagree about which way the character is looking.
+    /// </summary>
+    public bool IsFacingFront
     {
-        1 => "Left",
-        2 => "Right",
-        3 => "Back",
-        _ => "Front",
-    };
+        get => Direction == PccFacing.Front;
+        set { if (value) Direction = PccFacing.Front; }
+    }
+
+    public bool IsFacingLeft
+    {
+        get => Direction == PccFacing.Left;
+        set { if (value) Direction = PccFacing.Left; }
+    }
+
+    public bool IsFacingRight
+    {
+        get => Direction == PccFacing.Right;
+        set { if (value) Direction = PccFacing.Right; }
+    }
+
+    public bool IsFacingBack
+    {
+        get => Direction == PccFacing.Back;
+        set { if (value) Direction = PccFacing.Back; }
+    }
 
     public bool Animate
     {
