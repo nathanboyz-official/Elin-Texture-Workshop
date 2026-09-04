@@ -22,6 +22,7 @@ public sealed class PccPartViewModel : ObservableObject
     private BitmapSource? _thumbnail;
     private int _renderedFor = -1;
     private bool _isChosen;
+    private bool _isFavourite;
 
     public PccPartViewModel(PccFile part, Func<int> direction)
     {
@@ -52,6 +53,18 @@ public sealed class PccPartViewModel : ObservableObject
         get => _isChosen;
         set => SetProperty(ref _isChosen, value);
     }
+
+    /// <summary>Made in this application, so it can be deleted from here.</summary>
+    public bool IsMine => !IsNone && Part.IsMine;
+
+    public bool IsFavourite
+    {
+        get => _isFavourite;
+        set => SetProperty(ref _isFavourite, value);
+    }
+
+    /// <summary>The star is not offered on the empty choice; there is nothing to star.</summary>
+    public bool CanFavourite => !IsNone;
 
     /// <summary>
     /// The part's own front-facing cell rather than its whole sheet: sixteen poses at
@@ -253,6 +266,9 @@ public sealed class DressUpViewModel : ObservableObject
         ForgetColourCommand = new RelayCommand(p => ForgetColour(p as DyeViewModel));
         EditPartCommand = new RelayCommand(p => EditPart(p as PccPartViewModel),
             p => p is PccPartViewModel { IsNone: false });
+        ToggleFavouriteCommand = new RelayCommand(p => ToggleFavourite(p as PccPartViewModel));
+        DeletePartCommand = new RelayCommand(p => DeletePart(p as PccPartViewModel),
+            p => p is PccPartViewModel { IsMine: true });
         NewCharacterCommand = new RelayCommand(_ => NewCharacter());
         LoadStyleCommand = new RelayCommand(p => Load(p as SavedStyleViewModel));
         SaveCommand = new RelayCommand(_ => Save(), _ => CanSave);
@@ -280,6 +296,11 @@ public sealed class DressUpViewModel : ObservableObject
 
     public ObservableCollection<DressUpSlotViewModel> Slots { get; } = new();
     public ObservableCollection<PccPartViewModel> Parts { get; } = new();
+
+    /// <summary>Parts made in this application, kept in their own section above the rest.</summary>
+    public ObservableCollection<PccPartViewModel> Creations { get; } = new();
+
+    public bool HasCreations => Creations.Count > 0;
     public ObservableCollection<SavedStyleViewModel> SavedStyles { get; } = new();
     public ObservableCollection<DyeViewModel> Dyes { get; } = new();
 
@@ -300,6 +321,8 @@ public sealed class DressUpViewModel : ObservableObject
     public RelayCommand SaveColourCommand { get; }
     public RelayCommand ForgetColourCommand { get; }
     public RelayCommand EditPartCommand { get; }
+    public RelayCommand ToggleFavouriteCommand { get; }
+    public RelayCommand DeletePartCommand { get; }
     public RelayCommand NewCharacterCommand { get; }
     public RelayCommand LoadStyleCommand { get; }
     public RelayCommand SaveCommand { get; }
@@ -475,7 +498,8 @@ public sealed class DressUpViewModel : ObservableObject
             if (layer is null || string.IsNullOrEmpty(id)) continue;
 
             _library.Add(layer, SetOf(file), id, file.FullPath, file.ModName,
-                isVanilla: file.SourceType == TextureSourceType.Vanilla);
+                isVanilla: file.SourceType == TextureSourceType.Vanilla,
+                isMine: IsOurs(file.FullPath));
         }
 
         // And the base game's own parts.
@@ -531,6 +555,14 @@ public sealed class DressUpViewModel : ObservableObject
     private static bool IsWearable(string set) =>
         string.Equals(set, PccSlots.DefaultSet, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Whether a file was written by this application, which is what makes it ours to
+    /// delete. Decided by where it lives rather than by a name anyone could type.
+    /// </summary>
+    private bool IsOurs(string path) =>
+        _app.Paths is not null
+        && path.StartsWith(_app.Paths.OverridePackageRoot, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>The folder under Actor/PCC a file sits in, defaulting to what styles say.</summary>
     private static string SetOf(TextureFile file)
     {
@@ -562,10 +594,12 @@ public sealed class DressUpViewModel : ObservableObject
 
         SelectedSlot = slot;
         Parts.Clear();
+        Creations.Clear();
 
         var chosen = _style.Get(slot.Layer)?.FileId;
 
-        // "None" first, except for the body: a character with no body is not a character.
+        // "None" first, always, except for the body: a character with no body is not a
+        // character. Nothing sorts above it.
         if (slot.Layer != PccSlots.BodyLayer)
         {
             var none = PccPartViewModel.None(slot.Layer);
@@ -573,23 +607,47 @@ public sealed class DressUpViewModel : ObservableObject
             Parts.Add(none);
         }
 
-        foreach (var part in _library.InLayer(slot.Layer)
-                     .Where(p => IsWearable(p.Set))
-                     .OrderBy(p => p.ModName, StringComparer.CurrentCultureIgnoreCase)
-                     .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase))
-        {
-            var back = slot.Slot.BackLayer is not null
-                       && _library.Resolve(slot.Slot.BackLayer,
-                           new PccChoice { Set = part.Set, Id = part.Id }) is not null;
+        var made = _library.InLayer(slot.Layer)
+            .Where(p => IsWearable(p.Set))
+            .Select(p => Tile(p, slot, chosen))
+            .ToList();
 
-            Parts.Add(new PccPartViewModel(part with { HasBack = back }, () => Direction)
-            {
-                IsChosen = string.Equals(part.Id, chosen, StringComparison.OrdinalIgnoreCase),
-            });
+        // Then the starred ones, then everything else. Sorting by mod keeps a mod's
+        // parts together, which is how people think of them.
+        foreach (var tile in made
+                     .Where(t => !t.IsMine)
+                     .OrderByDescending(t => t.IsFavourite)
+                     .ThenBy(t => t.ModName, StringComparer.CurrentCultureIgnoreCase)
+                     .ThenBy(t => t.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            Parts.Add(tile);
+        }
+
+        foreach (var tile in made
+                     .Where(t => t.IsMine)
+                     .OrderByDescending(t => t.IsFavourite)
+                     .ThenBy(t => t.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            Creations.Add(tile);
         }
 
         OnPropertyChanged(nameof(PartsTitle));
         OnPropertyChanged(nameof(SlotColour));
+        OnPropertyChanged(nameof(HasCreations));
+    }
+
+    private PccPartViewModel Tile(PccFile part, DressUpSlotViewModel slot, string? chosen)
+    {
+        var back = slot.Slot.BackLayer is not null
+                   && _library.Resolve(slot.Slot.BackLayer,
+                       new PccChoice { Set = part.Set, Id = part.Id }) is not null;
+
+        return new PccPartViewModel(part with { HasBack = back }, () => Direction)
+        {
+            IsChosen = string.Equals(part.Id, chosen, StringComparison.OrdinalIgnoreCase),
+            IsFavourite = _app.Settings.FavouriteParts.Contains(
+                PccLibrary.KeyOf(part.Layer, part.Set, part.Id), StringComparer.OrdinalIgnoreCase),
+        };
     }
 
     private void Choose(PccPartViewModel? part)
@@ -757,7 +815,7 @@ public sealed class DressUpViewModel : ObservableObject
         var id = editor.SaveId.Trim();
         var path = PccPartWriter.PathFor(_app.Paths, part.Part.Set, part.Layer, id);
 
-        _library.Add(part.Layer, part.Part.Set, id, path, "Made here");
+        _library.Add(part.Layer, part.Part.Set, id, path, "Made here", isMine: true);
 
         if (SelectedSlot is { } slot)
         {
@@ -767,6 +825,62 @@ public sealed class DressUpViewModel : ObservableObject
 
         StatusMessage = $"Saved {System.IO.Path.GetFileName(path)} and put it on. "
                         + "It is in your override package, so the game will load it too.";
+    }
+
+    /// <summary>
+    /// Stars a part, which moves it to the front of its list.
+    ///
+    /// The list is rebuilt rather than the tile moved, because favourites sort ahead of
+    /// everything and doing that by hand in an observable collection is how ordering
+    /// bugs get in.
+    /// </summary>
+    private void ToggleFavourite(PccPartViewModel? part)
+    {
+        if (part is null or { IsNone: true }) return;
+
+        var key = PccLibrary.KeyOf(part.Layer, part.Part.Set, part.Id);
+        var favourites = _app.Settings.FavouriteParts;
+
+        if (part.IsFavourite) favourites.RemoveAll(f => string.Equals(f, key, StringComparison.OrdinalIgnoreCase));
+        else if (!favourites.Contains(key, StringComparer.OrdinalIgnoreCase)) favourites.Add(key);
+
+        _app.SaveSettings();
+
+        if (SelectedSlot is { } slot) SelectSlot(slot);
+    }
+
+    /// <summary>
+    /// Deletes a part made here. Only ever one made here - a mod's file belongs to the
+    /// mod, and removing it would be undone by Steam and blamed on the mod.
+    /// </summary>
+    private void DeletePart(PccPartViewModel? part)
+    {
+        if (part is null or { IsMine: false } || _app.Paths is null) return;
+
+        try
+        {
+            System.IO.File.Delete(part.Part.FullPath);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Could not delete it: " + ex.Message;
+            return;
+        }
+
+        _library.Remove(part.Part);
+
+        var key = PccLibrary.KeyOf(part.Layer, part.Part.Set, part.Id);
+        _app.Settings.FavouriteParts.RemoveAll(f => string.Equals(f, key, StringComparison.OrdinalIgnoreCase));
+        _app.SaveSettings();
+
+        // If the character was wearing it, it is not wearing it any more.
+        if (string.Equals(_style.Get(part.Layer)?.FileId, part.Id, StringComparison.OrdinalIgnoreCase))
+            _style.Set(part.Layer, null);
+
+        if (SelectedSlot is { } slot) { RefreshSlot(slot); SelectSlot(slot); }
+
+        StatusMessage = $"Deleted {part.Id}.";
+        Render();
     }
 
     private void RefreshSavedDyes()

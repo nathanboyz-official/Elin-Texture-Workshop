@@ -13,6 +13,9 @@ public sealed record PccFile(string Layer, string Set, string Id, string FullPat
 
     /// <summary>From the base game rather than a mod, which is what a default should be.</summary>
     public bool IsVanilla { get; init; }
+
+    /// <summary>Made in this application, and therefore ours to delete.</summary>
+    public bool IsMine { get; init; }
 }
 
 /// <summary>
@@ -36,9 +39,13 @@ public sealed class PccLibrary
 
     /// <summary>Adds a file. The set is the folder under Actor/PCC that holds it.</summary>
     public void Add(string layer, string set, string id, string fullPath, string modName,
-        bool isVanilla = false)
+        bool isVanilla = false, bool isMine = false)
     {
-        var part = new PccFile(layer, set, id, fullPath, modName) { IsVanilla = isVanilla };
+        var part = new PccFile(layer, set, id, fullPath, modName)
+        {
+            IsVanilla = isVanilla,
+            IsMine = isMine,
+        };
 
         // First one wins, matching the load order the caller feeds them in.
         if (!_byKey.TryAdd(Key(layer, set, id), part)) return;
@@ -102,5 +109,17 @@ public sealed class PccLibrary
             .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
 
-    private static string Key(string layer, string set, string id) => $"{layer}|{set}|{id}";
+    /// <summary>How a part is addressed, and how a favourite is remembered.</summary>
+    public static string KeyOf(string layer, string set, string id) => $"{layer}|{set}|{id}";
+
+    private static string Key(string layer, string set, string id) => KeyOf(layer, set, id);
+
+    /// <summary>Forgets a part, for when its file has been deleted.</summary>
+    public void Remove(PccFile part)
+    {
+        _byKey.Remove(Key(part.Layer, part.Set, part.Id));
+
+        if (_byLayer.TryGetValue(part.Layer, out var list))
+            list.RemoveAll(p => string.Equals(p.FullPath, part.FullPath, StringComparison.OrdinalIgnoreCase));
+    }
 }

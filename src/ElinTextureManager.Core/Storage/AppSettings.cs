@@ -79,6 +79,14 @@ public sealed class AppSettings
     /// </summary>
     public List<string> SavedColours { get; set; } = new();
 
+    /// <summary>
+    /// PCC parts the user has starred, as "layer|set|id".
+    ///
+    /// Kept as ids rather than paths so a favourite survives the mod being updated,
+    /// moved, or reinstalled somewhere else.
+    /// </summary>
+    public List<string> FavouriteParts { get; set; } = new();
+
     /// <summary>Whether the "it is still running down here" hint has been shown.</summary>
     public bool TrayHintShown { get; set; }
 

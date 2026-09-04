@@ -277,6 +277,40 @@
     <!-- Secondary actions. Borderless until pointed at, so a dense row of them
          does not read as a wall of boxes. -->
     <!--
+        The favourite star on a part tile: an outline until it is starred, then filled
+        gold. Transparent otherwise, so it does not compete with the sprite it sits on.
+    -->
+    <Style x:Key="StarButton" TargetType="Button">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Margin" Value="0,3,3,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent">
+                        <Path x:Name="Star" Stretch="Uniform" Margin="3"
+                              Fill="Transparent"
+                              Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.4"
+                              Data="M 12,2 L 15,9 L 22,9 L 16.5,13.5 L 18.5,21 L 12,16.5 L 5.5,21 L 7.5,13.5 L 2,9 L 9,9 Z" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Star" Property="Stroke"
+                                    Value="{StaticResource GoldBrush}" />
+                        </Trigger>
+                        <DataTrigger Binding="{Binding IsFavourite}" Value="True">
+                            <Setter TargetName="Star" Property="Fill"
+                                    Value="{StaticResource GoldBrush}" />
+                            <Setter TargetName="Star" Property="Stroke"
+                                    Value="{StaticResource GoldBrush}" />
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <!--
         The turn arrows on the character preview. Small and self-contained, sitting over
         the picture the way the game's own do, rather than columns that take width away
         from the character.

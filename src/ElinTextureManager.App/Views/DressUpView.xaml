@@ -33,6 +33,91 @@
                 </DataTrigger>
             </ControlTemplate.Triggers>
         </ControlTemplate>
+
+        <!-- One tile, used by both the Creations section and the main grid. -->
+        <DataTemplate x:Key="PartTile">
+                                <Button Width="100" Margin="0,0,8,8" Padding="0"
+                                        HorizontalContentAlignment="Stretch"
+                                        Template="{StaticResource PickTemplate}"
+                                        Command="{Binding DataContext.ChoosePartCommand,
+                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}">
+                                    <!-- The menu's own DataContext is the part, so the
+                                         page's commands are reached through Tag. -->
+                                    <Button.Tag>
+                                        <Binding Path="DataContext"
+                                                 RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                    </Button.Tag>
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Edit a copy of this sprite..."
+                                                      Command="{Binding PlacementTarget.Tag.EditPartCommand,
+                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="Delete this sprite"
+                                                      Command="{Binding PlacementTarget.Tag.DeletePartCommand,
+                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                    <StackPanel>
+                                        <Grid Height="144">
+                                            <Border Background="{StaticResource CheckerboardBrush}"
+                                                    CornerRadius="2,2,0,0" />
+                                            <Image Source="{Binding Thumbnail}" Stretch="None"
+                                                   RenderOptions.BitmapScalingMode="NearestNeighbor" />
+
+                                            <!-- No entry: the empty choice, drawn rather
+                                                 than rendered from a part. The bar runs
+                                                 top-left to bottom-right, as the sign
+                                                 everyone already knows does. -->
+                                            <Grid Width="52" Height="52"
+                                                  Visibility="{Binding IsNone,
+                                                              Converter={StaticResource BoolToVis}}">
+                                                <Ellipse Stroke="#E01B1B" StrokeThickness="7" />
+                                                <Rectangle Height="7" Width="38" Fill="#E01B1B"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           RenderTransformOrigin="0.5,0.5">
+                                                    <Rectangle.RenderTransform>
+                                                        <RotateTransform Angle="45" />
+                                                    </Rectangle.RenderTransform>
+                                                </Rectangle>
+                                            </Grid>
+                                            <Border Style="{StaticResource Pill}" Margin="4"
+                                                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Background="{StaticResource BlueToneBrush}"
+                                                    Visibility="{Binding HasBack,
+                                                                Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="+BACK" FontSize="8"
+                                                           Foreground="{StaticResource BlueBrush}" />
+                                            </Border>
+
+                                            <!-- The star sits over the tile, so it must
+                                                 not pass its click through to the tile
+                                                 underneath and change the part as well. -->
+                                            <Button Style="{StaticResource StarButton}"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                    ToolTip="Keep this one near the top"
+                                                    Visibility="{Binding CanFavourite,
+                                                                Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.ToggleFavouriteCommand,
+                                                              RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                        <StackPanel Margin="7,5,7,7">
+                                            <TextBlock Text="{Binding Id}" FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{Binding ModName}" FontSize="10" Margin="0,2,0,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{StaticResource TextMutedBrush}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Button>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid Margin="24,20,24,20">
@@ -104,6 +189,7 @@
         <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource Card}" Padding="12" Margin="0,0,12,0">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -270,10 +356,35 @@
                     </StackPanel>
                 </Border>
 
+
+                <!-- === CREATIONS === -->
+                <!-- Parts made here, above the rest and in their own section: they are
+                     the ones being worked on, and hunting for them among a thousand
+                     installed parts is not a search anyone should have to do. -->
+                <StackPanel Grid.Row="3" Margin="0,0,0,10"
+                            Visibility="{Binding HasCreations, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="CREATIONS" Style="{StaticResource SectionHeader}"
+                               Margin="0,0,0,6" />
+
+                    <ScrollViewer MaxHeight="210" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Creations}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <StaticResource ResourceKey="PartTile" />
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <Border Height="1" Margin="0,10,0,0"
+                            Background="{StaticResource BorderBrush}" />
+                </StackPanel>
+
                 <!-- Virtualised: Tops alone holds over a thousand parts, and turning the
                      character redraws every tile that is realised. Only the ones on
                      screen should pay for that. -->
-                <ItemsControl Grid.Row="3" ItemsSource="{Binding Parts}"
+                <ItemsControl Grid.Row="4" ItemsSource="{Binding Parts}"
                               ScrollViewer.CanContentScroll="True"
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                               VirtualizingPanel.IsVirtualizing="True"
@@ -291,73 +402,8 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Width="100" Margin="0,0,8,8" Padding="0"
-                                        HorizontalContentAlignment="Stretch"
-                                        Template="{StaticResource PickTemplate}"
-                                        Command="{Binding DataContext.ChoosePartCommand,
-                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}">
-                                    <!-- The menu's own DataContext is the part, so the
-                                         page's commands are reached through Tag. -->
-                                    <Button.Tag>
-                                        <Binding Path="DataContext"
-                                                 RelativeSource="{RelativeSource AncestorType=UserControl}" />
-                                    </Button.Tag>
-                                    <Button.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="Edit a copy of this sprite..."
-                                                      Command="{Binding PlacementTarget.Tag.EditPartCommand,
-                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                      CommandParameter="{Binding PlacementTarget.DataContext,
-                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                        </ContextMenu>
-                                    </Button.ContextMenu>
-                                    <StackPanel>
-                                        <Grid Height="144">
-                                            <Border Background="{StaticResource CheckerboardBrush}"
-                                                    CornerRadius="2,2,0,0" />
-                                            <Image Source="{Binding Thumbnail}" Stretch="None"
-                                                   RenderOptions.BitmapScalingMode="NearestNeighbor" />
-
-                                            <!-- No entry: the empty choice, drawn rather
-                                                 than rendered from a part. The bar runs
-                                                 top-left to bottom-right, as the sign
-                                                 everyone already knows does. -->
-                                            <Grid Width="52" Height="52"
-                                                  Visibility="{Binding IsNone,
-                                                              Converter={StaticResource BoolToVis}}">
-                                                <Ellipse Stroke="#E01B1B" StrokeThickness="7" />
-                                                <Rectangle Height="7" Width="38" Fill="#E01B1B"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"
-                                                           RenderTransformOrigin="0.5,0.5">
-                                                    <Rectangle.RenderTransform>
-                                                        <RotateTransform Angle="45" />
-                                                    </Rectangle.RenderTransform>
-                                                </Rectangle>
-                                            </Grid>
-                                            <Border Style="{StaticResource Pill}" Margin="4"
-                                                    HorizontalAlignment="Left" VerticalAlignment="Top"
-                                                    Background="{StaticResource BlueToneBrush}"
-                                                    Visibility="{Binding HasBack,
-                                                                Converter={StaticResource BoolToVis}}">
-                                                <TextBlock Text="+BACK" FontSize="8"
-                                                           Foreground="{StaticResource BlueBrush}" />
-                                            </Border>
-                                        </Grid>
-                                        <StackPanel Margin="7,5,7,7">
-                                            <TextBlock Text="{Binding Id}" FontSize="11"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{StaticResource TextPrimaryBrush}" />
-                                            <TextBlock Text="{Binding ModName}" FontSize="10" Margin="0,2,0,0"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{StaticResource TextMutedBrush}" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Button>
-                            </DataTemplate>
-                    </ItemsControl.ItemTemplate>
+                            <StaticResource ResourceKey="PartTile" />
+                        </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </Grid>
         </Border>
