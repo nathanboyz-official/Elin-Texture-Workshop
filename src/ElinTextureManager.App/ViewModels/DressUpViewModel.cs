@@ -203,6 +203,9 @@ public sealed class DressUpViewModel : ObservableObject
         ClearSlotCommand = new RelayCommand(_ => Choose(null));
         ChooseDyeCommand = new RelayCommand(p => Dye(p as DyeViewModel));
         RandomiseCommand = new RelayCommand(_ => Randomise());
+        RandomColoursCommand = new RelayCommand(_ => RandomColours());
+        RandomSlotColourCommand = new RelayCommand(_ => RandomSlotColour());
+        RandomSlotPartCommand = new RelayCommand(_ => RandomSlotPart());
         NewCharacterCommand = new RelayCommand(_ => NewCharacter());
         LoadStyleCommand = new RelayCommand(p => Load(p as SavedStyleViewModel));
         SaveCommand = new RelayCommand(_ => Save(), _ => CanSave);
@@ -231,6 +234,9 @@ public sealed class DressUpViewModel : ObservableObject
     public RelayCommand ClearSlotCommand { get; }
     public RelayCommand ChooseDyeCommand { get; }
     public RelayCommand RandomiseCommand { get; }
+    public RelayCommand RandomColoursCommand { get; }
+    public RelayCommand RandomSlotColourCommand { get; }
+    public RelayCommand RandomSlotPartCommand { get; }
     public RelayCommand NewCharacterCommand { get; }
     public RelayCommand LoadStyleCommand { get; }
     public RelayCommand SaveCommand { get; }
@@ -462,6 +468,7 @@ public sealed class DressUpViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(PartsTitle));
+        OnPropertyChanged(nameof(SlotColour));
     }
 
     private void Choose(PccPartViewModel? part)
@@ -493,14 +500,30 @@ public sealed class DressUpViewModel : ObservableObject
 
         foreach (var p in Parts) p.IsChosen = ReferenceEquals(p, part);
 
+        OnPropertyChanged(nameof(SlotColour));
+
         RefreshSlot(slot);
         Render();
     }
 
-    private void Dye(DyeViewModel? dye)
+    private void Dye(DyeViewModel? dye) => ApplyColour(dye?.Hex, dye is not null);
+
+    /// <summary>
+    /// The colour of the slot being edited, bound to the wheel.
+    ///
+    /// Setting it dyes that slot, which is what makes the wheel feel live: the character
+    /// changes while the colour is being dragged for, not once it is let go.
+    /// </summary>
+    public string? SlotColour
+    {
+        get => SelectedSlot is null ? null : _style.Get(SelectedSlot.Layer)?.Colour;
+        set { if (value is not null) ApplyColour(value, true); }
+    }
+
+    private void ApplyColour(string? hex, bool deliberate)
     {
         var slot = SelectedSlot;
-        if (dye is null || slot is null) return;
+        if (slot is null || !deliberate) return;
 
         if (_style.Get(slot.Layer) is not { } choice)
         {
@@ -508,9 +531,33 @@ public sealed class DressUpViewModel : ObservableObject
             return;
         }
 
-        choice.Colour = dye.Hex;
+        if (string.Equals(choice.Colour, hex, StringComparison.OrdinalIgnoreCase)) return;
+
+        choice.Colour = hex;
         RefreshSlot(slot);
+        OnPropertyChanged(nameof(SlotColour));
         Render();
+    }
+
+    /// <summary>Re-dyes everything the character is wearing, leaving the parts alone.</summary>
+    private void RandomColours()
+    {
+        foreach (var (_, choice) in _style.Parts) choice.Colour = PccColour.RandomHex(_random);
+
+        RefreshAllSlots();
+        OnPropertyChanged(nameof(SlotColour));
+        Render();
+    }
+
+    private void RandomSlotColour() => ApplyColour(PccColour.RandomHex(_random), true);
+
+    /// <summary>Rolls a different part for the slot being edited, keeping its colour.</summary>
+    private void RandomSlotPart()
+    {
+        var slot = SelectedSlot;
+        if (slot is null || Parts.Count == 0) return;
+
+        Choose(Parts[_random.Next(Parts.Count)]);
     }
 
     private void RefreshSlot(DressUpSlotViewModel slot)

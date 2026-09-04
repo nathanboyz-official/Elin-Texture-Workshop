@@ -1,0 +1,27 @@
+<UserControl x:Class="ElinTextureManager.App.Controls.ColourWheel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <Grid Width="150" Height="150" HorizontalAlignment="Left">
+            <Image x:Name="WheelImage" Stretch="Fill"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   MouseLeftButtonDown="OnWheelDown"
+                   MouseMove="OnWheelMove"
+                   MouseLeftButtonUp="OnWheelUp" />
+
+            <!-- The marker, positioned in code because it tracks a polar coordinate. -->
+            <Canvas IsHitTestVisible="False">
+                <Ellipse x:Name="Marker" Width="11" Height="11"
+                         Stroke="White" StrokeThickness="2" />
+                <Ellipse x:Name="MarkerInner" Width="13" Height="13"
+                         Stroke="#80000000" StrokeThickness="1" />
+            </Canvas>
+        </Grid>
+
+        <TextBlock Text="BRIGHTNESS" FontSize="9.5" Margin="0,10,0,4"
+                   Foreground="{StaticResource TextMutedBrush}" />
+        <Slider x:Name="ValueSlider" Width="150" HorizontalAlignment="Left"
+                Minimum="0" Maximum="1" SmallChange="0.02" LargeChange="0.1"
+                ValueChanged="OnValueChanged" />
+    </StackPanel>
+</UserControl>
