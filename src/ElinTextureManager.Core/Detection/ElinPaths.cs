@@ -54,6 +54,34 @@ public sealed class ElinPaths
     public string OverridePortraitRoot => Path.Combine(OverridePackageRoot, PortraitFolder);
 
     /// <summary>
+    /// Where Unity writes the game's log. Not under the install: it goes to the user's
+    /// LocalLow folder, which is why almost nobody ever finds it.
+    /// </summary>
+    public static string PlayerLogFolder => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        "AppData", "LocalLow", "Lafrontier", "Elin");
+
+    private string? _playerLog;
+
+    /// <summary>
+    /// The last session's log.
+    ///
+    /// Settable, and part of the paths rather than a global, so that anything reading it
+    /// takes it from the same place it takes every other path. A checker that reaches
+    /// past its arguments to a fixed location on the machine is one whose tests pass or
+    /// fail depending on whose computer they run on - which is exactly what happened
+    /// when this was static.
+    /// </summary>
+    public string PlayerLog
+    {
+        get => _playerLog ?? Path.Combine(PlayerLogFolder, "Player.log");
+        set => _playerLog = value;
+    }
+
+    /// <summary>The session before that. Kept because a crash often ends the newer one.</summary>
+    public string PreviousPlayerLog => Path.Combine(PlayerLogFolder, "Player-prev.log");
+
+    /// <summary>
     /// Elin's own drop-in folder, Elin\Custom. Files here are additions rather than
     /// replacements: the game offers what it finds alongside its own, instead of
     /// standing on top of a file that was already there.

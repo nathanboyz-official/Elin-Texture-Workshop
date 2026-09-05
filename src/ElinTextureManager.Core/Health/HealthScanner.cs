@@ -4,6 +4,7 @@ using ElinTextureManager.Core.LoadOrder;
 using ElinTextureManager.Core.Logging;
 using ElinTextureManager.Core.Model;
 using ElinTextureManager.Core.Overrides;
+using ElinTextureManager.Core.Logs;
 using ElinTextureManager.Core.Sheets;
 
 namespace ElinTextureManager.Core.Health;
@@ -55,6 +56,7 @@ public sealed class HealthScanner
         CheckDependencies(paths, codeMods, report);
         CheckWorkshop(scan, report);
         CheckSourceSheets(scan, report);
+        CheckPlayerLog(paths, report);
 
         report.Findings.Sort((a, b) => a.Severity != b.Severity
             ? a.Severity.CompareTo(b.Severity)
@@ -82,6 +84,20 @@ public sealed class HealthScanner
                     report.Findings.Add(finding);
             }
         }
+    }
+
+    /// <summary>
+    /// What the game itself wrote down last time it ran.
+    ///
+    /// Nobody reads Player.log - it is five thousand lines of Unity start-up with a
+    /// handful of meaningful ones buried in it, and it is not even under the game's
+    /// folder. Reading it here is the difference between guessing at what is wrong and
+    /// being told.
+    /// </summary>
+    private static void CheckPlayerLog(ElinPaths paths, HealthReport report)
+    {
+        foreach (var finding in PlayerLogReader.Read(paths.PlayerLog))
+            report.Findings.Add(finding);
     }
 
     private static List<string> FindWorkbooks(string dir)

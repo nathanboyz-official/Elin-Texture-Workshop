@@ -28,7 +28,15 @@ public sealed class TestWorkspace : IDisposable
 
         File.WriteAllText(Path.Combine(ElinRoot, "Elin.exe"), "stub");
 
-        Paths = new ElinPaths { ElinRoot = ElinRoot, WorkshopRoot = WorkshopRoot };
+        Paths = new ElinPaths
+        {
+            ElinRoot = ElinRoot,
+            WorkshopRoot = WorkshopRoot,
+
+            // Inside the workspace, so a check that reads the log reads this one and
+            // never the log belonging to whoever is running the tests.
+            PlayerLog = Path.Combine(Root, "Player.log"),
+        };
     }
 
     /// <summary>Creates a Workshop mod with a package.xml and the given texture files.</summary>
