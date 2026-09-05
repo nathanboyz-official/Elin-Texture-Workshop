@@ -21,6 +21,12 @@ public static class PortraitName
     /// <summary>The ending Elin reads as "this is a layer over another portrait".</summary>
     public const string OverlaySuffix = "-overlay";
 
+    /// <summary>The ending Elin reads as "this is the full-size art for that portrait".</summary>
+    public const string FullSuffix = "-full";
+
+    /// <summary>The endings the game looks up as extra layers rather than as portraits.</summary>
+    public static readonly string[] Reserved = { OverlaySuffix, FullSuffix };
+
     public const int MaxLength = 64;
 
     public static string FileName(string name) => name + ".png";
@@ -41,10 +47,13 @@ public static class PortraitName
         if (trimmed.Length > MaxLength)
             return PortraitNameCheck.No("That name is too long.");
 
-        if (trimmed.EndsWith(OverlaySuffix, StringComparison.OrdinalIgnoreCase))
-            return PortraitNameCheck.No(
-                "A name ending in \"-overlay\" is read by the game as a layer drawn over "
-                + "the portrait of the same name, not as a portrait of its own.");
+        foreach (var reserved in Reserved)
+        {
+            if (trimmed.EndsWith(reserved, StringComparison.OrdinalIgnoreCase))
+                return PortraitNameCheck.No(
+                    $"A name ending in \"{reserved}\" is read by the game as an extra layer "
+                    + "of the portrait with the same name, not as a portrait of its own.");
+        }
 
         return PortraitNameCheck.Fine;
     }
@@ -65,9 +74,21 @@ public static class PortraitName
 
         if (cleaned.Length > MaxLength) cleaned = cleaned[..MaxLength];
 
-        // Trailing "-overlay" would change what the file means, so it is not kept.
-        while (cleaned.EndsWith(OverlaySuffix, StringComparison.OrdinalIgnoreCase))
-            cleaned = cleaned[..^OverlaySuffix.Length].Trim();
+        // A reserved ending would change what the file means, so it is not kept.
+        var trimming = true;
+
+        while (trimming)
+        {
+            trimming = false;
+
+            foreach (var reserved in Reserved)
+            {
+                if (!cleaned.EndsWith(reserved, StringComparison.OrdinalIgnoreCase)) continue;
+
+                cleaned = cleaned[..^reserved.Length].Trim();
+                trimming = true;
+            }
+        }
 
         return cleaned.Length == 0 ? "portrait" : cleaned;
     }

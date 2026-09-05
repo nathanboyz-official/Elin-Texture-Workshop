@@ -183,8 +183,8 @@ public sealed class TextureBrowserViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Adds pictures of the user's own to Elin\Custom\Portrait, which the game offers in
-    /// its portrait picker alongside the built-in ones.
+    /// Adds a portrait of the user's own to Elin\Custom\Portrait, which the game offers
+    /// in its portrait picker alongside the built-in ones.
     ///
     /// Deliberately additive: nothing already in the folder is written over, and no
     /// vanilla portrait is replaced. A name that is taken gets a number rather than
@@ -198,107 +198,35 @@ public sealed class TextureBrowserViewModel : ObservableObject
             return;
         }
 
-        var dialog = new OpenFileDialog
+        var model = new PortraitImportViewModel(_app.Paths);
+
+        var window = new Views.PortraitImportWindow(model)
         {
-            Title = "Choose a picture to add as a portrait",
-            Filter = PortraitWriter.Filter,
-            Multiselect = true,
+            Owner = Application.Current?.MainWindow,
         };
 
-        // Given an owner on purpose. Without one the picker attaches itself to whatever
-        // window happens to be in front, which on a machine with a game running is the
-        // game - so the picker opens over it, on the wrong screen, and this window is
-        // left looking as though the button did nothing.
-        var opened = Application.Current?.MainWindow is { } main
-            ? dialog.ShowDialog(main)
-            : dialog.ShowDialog();
+        if (window.ShowDialog() != true || model.Picture is null) return;
 
-        if (opened != true) return;
+        string written;
 
-        var taken = PortraitWriter.Taken(_app.Paths);
-        var many = dialog.FileNames.Length > 1;
-
-        // Asked once for a batch. Being asked the same question about the size of each of
-        // fifteen pictures is not a choice, it is a toll.
-        bool? resizeAll = null;
-        var added = 0;
-        string? last = null;
-
-        foreach (var file in dialog.FileNames)
+        try
         {
-            BitmapSource image;
-
-            try
-            {
-                image = PortraitWriter.Read(file);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    $"{Path.GetFileName(file)} could not be read as a picture.\n\n{ex.Message}",
-                    "Could not add that one", MessageBoxButton.OK, MessageBoxImage.Warning);
-                continue;
-            }
-
-            var resize = false;
-            var advice = PortraitSize.Advice(image.PixelWidth, image.PixelHeight);
-
-            if (advice is not null)
-            {
-                if (resizeAll is not null)
-                {
-                    resize = resizeAll.Value;
-                }
-                else
-                {
-                    var answer = MessageBox.Show(
-                        $"{Path.GetFileName(file)}\n\n{advice}\n\n"
-                        + $"Scale it to {PortraitSize.Width}x{PortraitSize.Height}? "
-                        + "Choosing No adds it exactly as it is."
-                        + (many ? "\n\nThis answer is used for the rest of them." : ""),
-                        "Add portrait", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-
-                    if (answer == MessageBoxResult.Cancel) break;
-
-                    resize = answer == MessageBoxResult.Yes;
-                    if (many) resizeAll = resize;
-                }
-            }
-
-            var name = PortraitName.Available(file, taken.Contains);
-            taken.Add(name);
-
-            try
-            {
-                last = PortraitWriter.Install(_app.Paths, image, name, resize);
-                added++;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    $"{Path.GetFileName(file)} could not be saved.\n\n{ex.Message}",
-                    "Could not add that one", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            written = PortraitWriter.Install(_app.Paths, model.Picture, model.ChosenId);
         }
-
-        if (added == 0)
+        catch (Exception ex)
         {
-            StatusMessage = "Nothing was added.";
+            MessageBox.Show(
+                $"The portrait could not be saved.\n\n{ex.Message}",
+                "Could not add it", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        var what = added == 1
-            ? $"Added {Path.GetFileName(last)}"
-            : $"Added {added} portraits";
-
         StatusMessage =
-            $"{what} to {PortraitWriter.FolderFor(_app.Paths)}. They are additions, so "
-            + "nothing already there was replaced. Elin offers them in its portrait "
-            + "picker next time the game starts.";
+            $"Added {Path.GetFileName(written)} to {PortraitWriter.FolderFor(_app.Paths)}. "
+            + "It is an addition, so nothing already there was replaced. Elin offers it "
+            + "in its portrait picker next time the game starts.";
 
-        AddedNotice = added == 1
-            ? "The portrait you added is being brought into the list below."
-            : $"The {added} portraits you added are being brought into the list below.";
+        AddedNotice = "The portrait you added is being brought into the list below.";
 
         // Brought into view rather than left to be looked for. If the rescan does not
         // manage it - a thumbnail already cached under the same name, say - the notice

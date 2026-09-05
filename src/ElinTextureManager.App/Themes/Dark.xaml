@@ -605,8 +605,14 @@
                             </ToggleButton.Template>
                         </ToggleButton>
 
+                        <!-- The template and format have to be carried across with the
+                             item. Without them the closed box ignores DisplayMemberPath
+                             and ItemTemplate entirely and falls back to ToString(), so a
+                             list of anything but strings reads as type names. -->
                         <ContentPresenter Margin="{TemplateBinding Padding}"
                                           Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                                           IsHitTestVisible="False"
                                           VerticalAlignment="Center" HorizontalAlignment="Left" />
 

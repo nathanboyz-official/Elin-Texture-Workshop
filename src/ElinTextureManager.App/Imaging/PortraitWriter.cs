@@ -57,26 +57,18 @@ public static class PortraitWriter
     }
 
     /// <summary>
-    /// Installs an image as a portrait. Scaled to the usual size when asked, copied at
-    /// its own size otherwise. Returns the path written.
+    /// Installs an image as a portrait under the id given, which is the file name the
+    /// game reads the group and gender out of. The picture is fitted to the frame if it
+    /// is not already the right size, and left exactly as it is if it is. Returns the
+    /// path written.
     /// </summary>
-    public static string Install(ElinPaths paths, BitmapSource image, string name,
-        bool resize)
+    public static string Install(ElinPaths paths, BitmapSource image, string id)
     {
-        var check = PortraitName.Check(name);
-        if (!check.Ok) throw new InvalidOperationException(check.Problem);
+        if (string.IsNullOrWhiteSpace(id))
+            throw new InvalidOperationException("A portrait needs a name.");
 
-        BitmapSource output = image;
-
-        if (resize && !PortraitSize.IsStandard(image.PixelWidth, image.PixelHeight))
-        {
-            var scale = new TransformedBitmap(image, new ScaleTransform(
-                PortraitSize.Width / (double)image.PixelWidth,
-                PortraitSize.Height / (double)image.PixelHeight));
-
-            scale.Freeze();
-            output = scale;
-        }
+        var output = PortraitFit.ToFrame(image);
+        var name = id;
 
         var folder = FolderFor(paths);
         Directory.CreateDirectory(folder);
