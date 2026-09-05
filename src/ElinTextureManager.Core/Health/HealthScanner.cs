@@ -4,6 +4,7 @@ using ElinTextureManager.Core.LoadOrder;
 using ElinTextureManager.Core.Logging;
 using ElinTextureManager.Core.Model;
 using ElinTextureManager.Core.Overrides;
+using ElinTextureManager.Core.Sheets;
 
 namespace ElinTextureManager.Core.Health;
 
@@ -53,6 +54,7 @@ public sealed class HealthScanner
         CheckVersions(paths, codeMods, report);
         CheckDependencies(paths, codeMods, report);
         CheckWorkshop(scan, report);
+        CheckSourceSheets(scan, report);
 
         report.Findings.Sort((a, b) => a.Severity != b.Severity
             ? a.Severity.CompareTo(b.Severity)
@@ -61,6 +63,37 @@ public sealed class HealthScanner
         AppLog.Info($"Health scan: {report.Findings.Count} findings across "
                     + $"{report.CodeModCount} mods that ship code.");
         return report;
+    }
+
+    /// <summary>
+    /// The spreadsheets mods add characters, items and the rest with.
+    ///
+    /// Worth checking here rather than nowhere: the game reads these silently, so a tab
+    /// named wrong or a single blank row throws content away without anything being said,
+    /// in the game or out of it. Most mods have no sheets at all and cost nothing.
+    /// </summary>
+    private static void CheckSourceSheets(ScanResult scan, HealthReport report)
+    {
+        foreach (var mod in scan.Mods.Where(m => m.SourceType != TextureSourceType.Vanilla))
+        {
+            foreach (var book in FindWorkbooks(mod.Directory))
+            {
+                foreach (var finding in SourceSheetChecker.Check(book, mod.Name, mod.Key))
+                    report.Findings.Add(finding);
+            }
+        }
+    }
+
+    private static List<string> FindWorkbooks(string dir)
+    {
+        try
+        {
+            return Directory.GetFiles(dir, "*.xlsx", SearchOption.AllDirectories)
+                // Excel's own lock files, which are not workbooks.
+                .Where(f => !Path.GetFileName(f).StartsWith("~$", StringComparison.Ordinal))
+                .ToList();
+        }
+        catch { return new List<string>(); }
     }
 
     private static List<string> FindAssemblies(string dir)
