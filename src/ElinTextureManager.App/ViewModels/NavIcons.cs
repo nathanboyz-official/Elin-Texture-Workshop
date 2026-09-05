@@ -100,9 +100,16 @@ public static class NavIcons
           + "M1.5,8 L3.3,8 M12.7,8 L14.5,8 M3.4,3.4 L4.7,4.7 M11.3,11.3 L12.6,12.6 "
           + "M12.6,3.4 L11.3,4.7 M4.7,11.3 L3.4,12.6");
 
+    /// <summary>An open book.</summary>
+    public static Geometry Guide { get; } =
+        Geometry.Parse(
+            "M8,4.2 C6.6,3.2 4.6,3 2.5,3.2 L2.5,12.4 C4.6,12.2 6.6,12.4 8,13.4 "
+            + "C9.4,12.4 11.4,12.2 13.5,12.4 L13.5,3.2 C11.4,3 9.4,3.2 8,4.2 Z M8,4.2 L8,13.4");
+
     /// <summary>Looks up an icon by nav key. Unknown keys get no icon rather than a wrong one.</summary>
     public static Geometry? ForKey(string key) => key switch
     {
+        "Guide" => Guide,
         "AllTextures" => AllTextures,
         "Characters" => Characters,
         "Items" => Items,

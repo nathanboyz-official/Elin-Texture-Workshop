@@ -118,6 +118,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public SetupsViewModel Setups { get; }
 
     public BisectViewModel Bisect { get; }
+    public GuideViewModel Guide { get; } = new();
 
     public DressUpViewModel DressUp { get; }
 
@@ -292,6 +293,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         Add(SystemNav, "Setups", "Setups",
             "Named profiles of texture choices, and setup files that move one between machines.");
+        Add(SystemNav, "Guide", "Modding Guide",
+            "How a mod is put together, and the parts of it that fail quietly.");
         Add(SystemNav, "News", "Game News", "Elin's own Steam announcements.");
         Add(SystemNav, "Settings", "Settings", "Paths, scanning and appearance.");
     }
@@ -381,6 +384,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 // Same pattern as News: show the page at once, fill it in when the
                 // assembly read lands. It runs once and then only on demand.
                 _ = Health.RunAsync();
+                break;
+            case "Guide":
+                CurrentPage = Guide;
                 break;
             case "News":
                 CurrentPage = News;
