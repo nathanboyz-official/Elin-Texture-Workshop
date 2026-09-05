@@ -1,5 +1,5 @@
 using ElinTextureManager.Core.Health;
-using ElinTextureManager.Core.Logs;
+using ElinTextureManager.Core.GameLog;
 using Xunit;
 
 namespace ElinTextureManager.Tests;

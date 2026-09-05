@@ -4,7 +4,7 @@ using ElinTextureManager.Core.LoadOrder;
 using ElinTextureManager.Core.Logging;
 using ElinTextureManager.Core.Model;
 using ElinTextureManager.Core.Overrides;
-using ElinTextureManager.Core.Logs;
+using ElinTextureManager.Core.GameLog;
 using ElinTextureManager.Core.Sheets;
 
 namespace ElinTextureManager.Core.Health;
