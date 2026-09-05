@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using ElinTextureManager.App.Imaging;
 using ElinTextureManager.App.Mvvm;
 using ElinTextureManager.App.Services;
+using ElinTextureManager.Core.Logging;
 using ElinTextureManager.Core.Model;
 using ElinTextureManager.Core.Overrides;
 using ElinTextureManager.Core.Portraits;
@@ -29,6 +30,7 @@ public sealed class TextureBrowserViewModel : ObservableObject
 {
     private readonly AppServices _app;
     private readonly Action<TextureEntry> _openDetail;
+    private readonly Func<Task>? _rescan;
 
     private string _searchText = string.Empty;
     private TextureScope _scope = TextureScope.All;
@@ -38,10 +40,12 @@ public sealed class TextureBrowserViewModel : ObservableObject
     private string _title = "All Textures";
     private string? _subtitle;
 
-    public TextureBrowserViewModel(AppServices app, Action<TextureEntry> openDetail)
+    public TextureBrowserViewModel(AppServices app, Action<TextureEntry> openDetail,
+        Func<Task>? rescan = null)
     {
         _app = app;
         _openDetail = openDetail;
+        _rescan = rescan;
 
         OpenCommand = new RelayCommand(p =>
         {
@@ -56,6 +60,8 @@ public sealed class TextureBrowserViewModel : ObservableObject
         });
 
         AddPortraitCommand = new RelayCommand(_ => AddPortrait());
+        RestartCommand = new RelayCommand(_ => Restart());
+        DismissAddedNoticeCommand = new RelayCommand(_ => AddedNotice = null);
     }
 
     public ObservableCollection<TextureCardViewModel> Items { get; } = new();
@@ -100,6 +106,9 @@ public sealed class TextureBrowserViewModel : ObservableObject
     public bool CanAddPortrait =>
         string.Equals(_categoryFilter, TextureCategory.Portraits, StringComparison.Ordinal);
 
+    public RelayCommand RestartCommand { get; }
+    public RelayCommand DismissAddedNoticeCommand { get; }
+
     private string? _statusMessage;
 
     /// <summary>What the last thing the user did came to. Null when there is nothing to say.</summary>
@@ -107,6 +116,22 @@ public sealed class TextureBrowserViewModel : ObservableObject
     {
         get => _statusMessage;
         private set => SetProperty(ref _statusMessage, value);
+    }
+
+    private string? _addedNotice;
+
+    /// <summary>
+    /// Shown with a Restart button after portraits are added. Null the rest of the time.
+    /// </summary>
+    public string? AddedNotice
+    {
+        get => _addedNotice;
+        private set => SetProperty(ref _addedNotice, value);
+    }
+
+    private void Restart()
+    {
+        if (Application.Current is App running) running.Restart();
     }
 
     public string Title
@@ -180,7 +205,15 @@ public sealed class TextureBrowserViewModel : ObservableObject
             Multiselect = true,
         };
 
-        if (dialog.ShowDialog() != true) return;
+        // Given an owner on purpose. Without one the picker attaches itself to whatever
+        // window happens to be in front, which on a machine with a game running is the
+        // game - so the picker opens over it, on the wrong screen, and this window is
+        // left looking as though the button did nothing.
+        var opened = Application.Current?.MainWindow is { } main
+            ? dialog.ShowDialog(main)
+            : dialog.ShowDialog();
+
+        if (opened != true) return;
 
         var taken = PortraitWriter.Taken(_app.Paths);
         var many = dialog.FileNames.Length > 1;
@@ -254,17 +287,42 @@ public sealed class TextureBrowserViewModel : ObservableObject
             return;
         }
 
-        // Said plainly, because this page cannot show the result: it lists what mods and
-        // the base game supply, and Custom\Portrait is neither.
         var what = added == 1
             ? $"Added {Path.GetFileName(last)}"
             : $"Added {added} portraits";
 
         StatusMessage =
-            $"{what} to {PortraitWriter.FolderFor(_app.Paths)}. "
-            + "Elin offers them in its portrait picker next time it starts. They are "
-            + "additions, so nothing already there was replaced - and they do not appear "
-            + "on this page, which lists what mods and the base game supply.";
+            $"{what} to {PortraitWriter.FolderFor(_app.Paths)}. They are additions, so "
+            + "nothing already there was replaced. Elin offers them in its portrait "
+            + "picker next time the game starts.";
+
+        AddedNotice = added == 1
+            ? "The portrait you added is being brought into the list below."
+            : $"The {added} portraits you added are being brought into the list below.";
+
+        // Brought into view rather than left to be looked for. If the rescan does not
+        // manage it - a thumbnail already cached under the same name, say - the notice
+        // beside this offers a restart, which rebuilds everything from the folder.
+        BringAddedIntoView();
+    }
+
+    private async void BringAddedIntoView()
+    {
+        if (_rescan is null) return;
+
+        try
+        {
+            await _rescan();
+            SearchText = string.Empty;
+            Scope = TextureScope.All;
+            SelectedPrefixDisplay = AllPrefixes;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Could not rescan after adding a portrait", ex);
+            AddedNotice = "They are on disk, but the list could not be rebuilt. "
+                          + "Restarting will pick them up.";
+        }
     }
 
     public int ResultCount => Items.Count;

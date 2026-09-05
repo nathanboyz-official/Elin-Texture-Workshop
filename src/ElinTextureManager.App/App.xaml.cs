@@ -54,6 +54,7 @@ public partial class App : Application
 
             tray.OpenRequested += window.ShowFromTray;
             tray.SettingsRequested += window.ShowSettingsFromTray;
+            tray.RestartRequested += Restart;
             tray.ExitRequested += Quit;
             tray.Visible = Services.Settings.MinimiseToTray;
 
@@ -78,6 +79,22 @@ public partial class App : Application
         if (MainWindow is not null) MainWindow.Close();
         else Shutdown();
     }
+
+    /// <summary>
+    /// Closes and starts again.
+    ///
+    /// The new copy is launched from OnExit rather than here, so the settings, the
+    /// selections and the cache database are all closed and written before anything
+    /// reopens them. Two copies of this reading the same cache at once is how a cache
+    /// gets corrupted, and that has already happened once.
+    /// </summary>
+    public void Restart()
+    {
+        _restartOnExit = true;
+        Quit();
+    }
+
+    private bool _restartOnExit;
 
     /// <summary>Shows or hides the tray icon when the setting changes.</summary>
     public void ApplyTraySetting()
@@ -104,6 +121,40 @@ public partial class App : Application
         AppLog.Info("Application exiting.");
         Tray?.Dispose();
         Services.Dispose();
+
+        if (_restartOnExit) StartAgain();
+
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Launches a fresh copy of this application, after everything this one held has been
+    /// let go of.
+    /// </summary>
+    private static void StartAgain()
+    {
+        try
+        {
+            var exe = Environment.ProcessPath;
+
+            if (string.IsNullOrEmpty(exe))
+            {
+                AppLog.Error("Cannot restart: the running program's own path is unknown.");
+                return;
+            }
+
+            AppLog.Info($"Restarting: {exe}");
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+            {
+                UseShellExecute = true,
+                WorkingDirectory = System.IO.Path.GetDirectoryName(exe) ?? string.Empty,
+            });
+        }
+        catch (Exception ex)
+        {
+            // Nothing useful can be shown here - the window is already gone.
+            AppLog.Error("Could not start the application again", ex);
+        }
     }
 }

@@ -144,14 +144,37 @@
                            Foreground="{StaticResource TextMutedBrush}"
                            Visibility="{Binding Subtitle, Converter={StaticResource NotNullToVis}}" />
 
-                <!-- Where an added portrait went. This page cannot show it: it lists what
-                     mods and the base game supply, and Custom\Portrait is neither. -->
+                <!-- Where an added portrait went. -->
                 <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource SubtleText}"
                            Margin="0,7,0,0" MaxWidth="760" HorizontalAlignment="Left"
                            TextWrapping="Wrap"
                            Foreground="{StaticResource TextPrimaryBrush}"
                            Visibility="{Binding StatusMessage,
                                         Converter={StaticResource NotNullToVis}}" />
+
+                <!-- Offered after adding. The rescan usually brings them in on its own,
+                     so this is the way out when it does not rather than a step. -->
+                <Border Margin="0,9,0,0" HorizontalAlignment="Left" MaxWidth="760"
+                        Background="{StaticResource SurfaceSunkenBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="4" Padding="12,9"
+                        Visibility="{Binding AddedNotice,
+                                     Converter={StaticResource NotNullToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding AddedNotice}" TextWrapping="Wrap"
+                                   MaxWidth="520" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+
+                        <Button Content="Restart now" Style="{StaticResource SubtleButton}"
+                                Margin="14,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding RestartCommand}"
+                                ToolTip="Close and start this application again, which rebuilds the list from the folders on disk" />
+
+                        <Button Content="Dismiss" Style="{StaticResource SubtleButton}"
+                                Margin="8,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding DismissAddedNoticeCommand}" />
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
             <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top"

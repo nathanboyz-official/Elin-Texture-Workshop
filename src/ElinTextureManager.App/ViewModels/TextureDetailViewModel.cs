@@ -46,6 +46,7 @@ public sealed class TextureVersionViewModel : ObservableObject
         TextureSourceType.Override => "Your override",
         TextureSourceType.LocalMod => "Local mod",
         TextureSourceType.Vanilla => "Vanilla",
+        TextureSourceType.Custom => "Added by you",
         _ => IsVariant ? $"Variant: {VariantName}" : "Workshop",
     };
 

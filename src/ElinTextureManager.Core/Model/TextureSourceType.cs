@@ -14,4 +14,11 @@ public enum TextureSourceType
     LocalMod = 2,
     /// <summary>A texture written by this application into its own override package.</summary>
     Override = 3,
+
+    /// <summary>
+    /// A file the user dropped into Elin's own Custom folder - a portrait of their own,
+    /// say. An addition rather than a replacement: it stands alongside the game's files
+    /// instead of standing on top of one.
+    /// </summary>
+    Custom = 4,
 }

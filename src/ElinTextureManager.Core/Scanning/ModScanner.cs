@@ -104,6 +104,13 @@ public sealed class ModScanner
             }
         }
 
+        // Elin's own Custom folder. Not a mod, but laid out like one - Custom\Portrait
+        // sits where a mod's Portrait folder would - so the same walk finds it. Without
+        // this a portrait the user added themselves is a file they cannot see anywhere
+        // in this application, which is a poor answer to "did that work?".
+        if (Directory.Exists(paths.CustomRoot))
+            modDirs.Add((paths.CustomRoot, TextureSourceType.Custom));
+
         AppLog.Info($"Scanning {modDirs.Count} mod folders.");
         progress?.Report(new ScanProgress("Scanning mods", 0, modDirs.Count));
 
@@ -196,6 +203,9 @@ public sealed class ModScanner
             Name = folderName,
             SourceType = type,
         };
+
+        // "Custom" is the folder's name, not a description of what is in it.
+        if (type == TextureSourceType.Custom) mod.Name = "Added by you";
 
         try { mod.LastModifiedUtc = Directory.GetLastWriteTimeUtc(dir); }
         catch { }

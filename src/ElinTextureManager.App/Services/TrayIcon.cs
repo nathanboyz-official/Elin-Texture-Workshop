@@ -39,6 +39,7 @@ public sealed class TrayIcon : IDisposable
 
     public event Action? OpenRequested;
     public event Action? SettingsRequested;
+    public event Action? RestartRequested;
     public event Action? ExitRequested;
 
     public bool Visible
@@ -88,6 +89,7 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(Item("Open", () => OpenRequested?.Invoke()));
         menu.Items.Add(Item("Settings", () => SettingsRequested?.Invoke()));
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(Item("Restart", () => RestartRequested?.Invoke()));
         menu.Items.Add(Item("Quit", () => ExitRequested?.Invoke()));
 
         return menu;

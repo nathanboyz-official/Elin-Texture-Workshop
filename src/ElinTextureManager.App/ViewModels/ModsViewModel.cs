@@ -141,6 +141,7 @@ public sealed class ModRowViewModel : ObservableObject
             TextureSourceType.Override => "override",
             TextureSourceType.LocalMod => "local package",
             TextureSourceType.Vanilla => "base game",
+            TextureSourceType.Custom => "added by you",
             // A Workshop item that loadorder.txt does not mention: say so rather than
             // implying a position we do not have.
             _ => "not in load order",
@@ -155,6 +156,7 @@ public sealed class ModRowViewModel : ObservableObject
         TextureSourceType.Override => "Override package",
         TextureSourceType.LocalMod => "Local package",
         TextureSourceType.Vanilla => "Base game",
+        TextureSourceType.Custom => @"Elin\Custom",
         _ => "Workshop",
     };
 

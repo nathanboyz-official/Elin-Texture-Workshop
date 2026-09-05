@@ -77,7 +77,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _app = app;
         _dispatcher = dispatcher;
 
-        Browser = new TextureBrowserViewModel(_app, OpenTextureDetail);
+        // The rescan is passed in so that adding a portrait can bring itself into view
+        // without the browser having to know what a scan is.
+        Browser = new TextureBrowserViewModel(_app, OpenTextureDetail,
+            () => RefreshAsync(userRequested: true));
         Overrides = new OverridesViewModel(_app, OnDataChanged, OpenTextureDetail);
         Mods = new ModsViewModel(_app, OpenModDetail, OnDataChanged);
         LoadOrder = new LoadOrderViewModel(_app, OnDataChanged);
