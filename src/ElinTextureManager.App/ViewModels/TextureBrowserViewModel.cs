@@ -1,9 +1,15 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Windows;
+using System.Windows.Media.Imaging;
+using ElinTextureManager.App.Imaging;
 using ElinTextureManager.App.Mvvm;
 using ElinTextureManager.App.Services;
 using ElinTextureManager.Core.Model;
 using ElinTextureManager.Core.Overrides;
+using ElinTextureManager.Core.Portraits;
 using ElinTextureManager.Core.Storage;
+using Microsoft.Win32;
 
 namespace ElinTextureManager.App.ViewModels;
 
@@ -48,6 +54,8 @@ public sealed class TextureBrowserViewModel : ObservableObject
             Scope = TextureScope.All;
             SelectedPrefixDisplay = AllPrefixes;
         });
+
+        AddPortraitCommand = new RelayCommand(_ => AddPortrait());
     }
 
     public ObservableCollection<TextureCardViewModel> Items { get; } = new();
@@ -83,6 +91,23 @@ public sealed class TextureBrowserViewModel : ObservableObject
 
     public RelayCommand OpenCommand { get; }
     public RelayCommand ClearFiltersCommand { get; }
+    public RelayCommand AddPortraitCommand { get; }
+
+    /// <summary>
+    /// Only the portraits page offers this. The same view model backs every category
+    /// page, and "Add portrait" on the Items page would be a button that lies.
+    /// </summary>
+    public bool CanAddPortrait =>
+        string.Equals(_categoryFilter, TextureCategory.Portraits, StringComparison.Ordinal);
+
+    private string? _statusMessage;
+
+    /// <summary>What the last thing the user did came to. Null when there is nothing to say.</summary>
+    public string? StatusMessage
+    {
+        get => _statusMessage;
+        private set => SetProperty(ref _statusMessage, value);
+    }
 
     public string Title
     {
@@ -111,7 +136,13 @@ public sealed class TextureBrowserViewModel : ObservableObject
     public string? CategoryFilter
     {
         get => _categoryFilter;
-        set { if (SetProperty(ref _categoryFilter, value)) Apply(); }
+        set
+        {
+            if (!SetProperty(ref _categoryFilter, value)) return;
+
+            OnPropertyChanged(nameof(CanAddPortrait));
+            Apply();
+        }
     }
 
     public string? PrefixFilter
@@ -124,6 +155,116 @@ public sealed class TextureBrowserViewModel : ObservableObject
     {
         get => _modFilter;
         set { if (SetProperty(ref _modFilter, value)) Apply(); }
+    }
+
+    /// <summary>
+    /// Adds pictures of the user's own to Elin\Custom\Portrait, which the game offers in
+    /// its portrait picker alongside the built-in ones.
+    ///
+    /// Deliberately additive: nothing already in the folder is written over, and no
+    /// vanilla portrait is replaced. A name that is taken gets a number rather than
+    /// taking the other portrait's place.
+    /// </summary>
+    private void AddPortrait()
+    {
+        if (_app.Paths is null)
+        {
+            StatusMessage = "Elin has not been found yet, so there is nowhere to put it.";
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Choose a picture to add as a portrait",
+            Filter = PortraitWriter.Filter,
+            Multiselect = true,
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        var taken = PortraitWriter.Taken(_app.Paths);
+        var many = dialog.FileNames.Length > 1;
+
+        // Asked once for a batch. Being asked the same question about the size of each of
+        // fifteen pictures is not a choice, it is a toll.
+        bool? resizeAll = null;
+        var added = 0;
+        string? last = null;
+
+        foreach (var file in dialog.FileNames)
+        {
+            BitmapSource image;
+
+            try
+            {
+                image = PortraitWriter.Read(file);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{Path.GetFileName(file)} could not be read as a picture.\n\n{ex.Message}",
+                    "Could not add that one", MessageBoxButton.OK, MessageBoxImage.Warning);
+                continue;
+            }
+
+            var resize = false;
+            var advice = PortraitSize.Advice(image.PixelWidth, image.PixelHeight);
+
+            if (advice is not null)
+            {
+                if (resizeAll is not null)
+                {
+                    resize = resizeAll.Value;
+                }
+                else
+                {
+                    var answer = MessageBox.Show(
+                        $"{Path.GetFileName(file)}\n\n{advice}\n\n"
+                        + $"Scale it to {PortraitSize.Width}x{PortraitSize.Height}? "
+                        + "Choosing No adds it exactly as it is."
+                        + (many ? "\n\nThis answer is used for the rest of them." : ""),
+                        "Add portrait", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+                    if (answer == MessageBoxResult.Cancel) break;
+
+                    resize = answer == MessageBoxResult.Yes;
+                    if (many) resizeAll = resize;
+                }
+            }
+
+            var name = PortraitName.Available(file, taken.Contains);
+            taken.Add(name);
+
+            try
+            {
+                last = PortraitWriter.Install(_app.Paths, image, name, resize);
+                added++;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{Path.GetFileName(file)} could not be saved.\n\n{ex.Message}",
+                    "Could not add that one", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        if (added == 0)
+        {
+            StatusMessage = "Nothing was added.";
+            return;
+        }
+
+        // Said plainly, because this page cannot show the result: it lists what mods and
+        // the base game supply, and Custom\Portrait is neither.
+        var what = added == 1
+            ? $"Added {Path.GetFileName(last)}"
+            : $"Added {added} portraits";
+
+        StatusMessage =
+            $"{what} to {PortraitWriter.FolderFor(_app.Paths)}. "
+            + "Elin offers them in its portrait picker next time it starts. They are "
+            + "additions, so nothing already there was replaced - and they do not appear "
+            + "on this page, which lists what mods and the base game supply.";
     }
 
     public int ResultCount => Items.Count;

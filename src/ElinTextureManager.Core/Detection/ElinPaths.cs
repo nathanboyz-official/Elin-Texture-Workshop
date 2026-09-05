@@ -54,6 +54,20 @@ public sealed class ElinPaths
     public string OverridePortraitRoot => Path.Combine(OverridePackageRoot, PortraitFolder);
 
     /// <summary>
+    /// Elin's own drop-in folder, Elin\Custom. Files here are additions rather than
+    /// replacements: the game offers what it finds alongside its own, instead of
+    /// standing on top of a file that was already there.
+    /// </summary>
+    public string CustomRoot => Path.Combine(ElinRoot, "Custom");
+
+    /// <summary>
+    /// Where a portrait of your own goes: Elin\Custom\Portrait. Anything dropped here is
+    /// offered by the game's portrait picker in addition to the built-in ones, so adding
+    /// to it hides nothing and takes nothing away.
+    /// </summary>
+    public string CustomPortraitRoot => Path.Combine(CustomRoot, PortraitFolder);
+
+    /// <summary>
     /// Which folder inside the override package a replacement of the given kind is
     /// written to. A package mirrors the layout of _Elona, so the kind picks the folder.
     /// </summary>

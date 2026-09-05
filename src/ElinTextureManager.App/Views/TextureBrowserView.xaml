@@ -143,11 +143,31 @@
                            Margin="0,3,0,0" MaxWidth="760" HorizontalAlignment="Left"
                            Foreground="{StaticResource TextMutedBrush}"
                            Visibility="{Binding Subtitle, Converter={StaticResource NotNullToVis}}" />
+
+                <!-- Where an added portrait went. This page cannot show it: it lists what
+                     mods and the base game supply, and Custom\Portrait is neither. -->
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource SubtleText}"
+                           Margin="0,7,0,0" MaxWidth="760" HorizontalAlignment="Left"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Visibility="{Binding StatusMessage,
+                                        Converter={StaticResource NotNullToVis}}" />
             </StackPanel>
 
-            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Top"
-                       Style="{StaticResource MonoText}" Margin="0,7,0,0"
-                       Text="{Binding ResultCount, StringFormat={}{0:N0} shown}" />
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Orientation="Horizontal" Margin="0,4,0,0">
+                <!-- Only on the portraits page: the same view model backs every category,
+                     and this button on the Items page would be a button that lies. -->
+                <Button Content="Add portrait…" Style="{StaticResource SubtleButton}"
+                        Margin="0,0,12,0"
+                        Command="{Binding AddPortraitCommand}"
+                        ToolTip="Add a picture of your own to Elin's Custom\Portrait folder, so the game offers it when choosing a portrait"
+                        Visibility="{Binding CanAddPortrait,
+                                     Converter={StaticResource BoolToVis}}" />
+
+                <TextBlock Style="{StaticResource MonoText}" Margin="0,3,0,0"
+                           Text="{Binding ResultCount, StringFormat={}{0:N0} shown}" />
+            </StackPanel>
         </Grid>
 
         <!-- ============ FILTER TOOLBAR ============
