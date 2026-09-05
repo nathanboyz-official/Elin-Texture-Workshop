@@ -4,7 +4,10 @@ using System.Windows.Media.Imaging;
 using ElinTextureManager.App.Imaging;
 using ElinTextureManager.App.Mvvm;
 using ElinTextureManager.App.Services;
+using System.IO;
+using ElinTextureManager.Core.Logging;
 using ElinTextureManager.Core.Model;
+using ElinTextureManager.Core.Sheets;
 using ElinTextureManager.Core.Services;
 
 namespace ElinTextureManager.App.ViewModels;
@@ -267,6 +270,7 @@ public sealed class ModsViewModel : ObservableObject
 
         ApplyChangesCommand = new RelayCommand(ApplyChanges, () => HasPendingChanges);
         DiscardChangesCommand = new RelayCommand(DiscardChanges, () => HasPendingChanges);
+        NewModCommand = new RelayCommand(_ => StartAMod());
         EnableAllShownCommand = new RelayCommand(() => SetAllShown(true));
         DisableAllShownCommand = new RelayCommand(() => SetAllShown(false));
     }
@@ -274,7 +278,98 @@ public sealed class ModsViewModel : ObservableObject
     public ObservableCollection<ModRowViewModel> Items { get; } = new();
     public ObservableCollection<ModSectionViewModel> Sections { get; } = new();
 
+    public RelayCommand NewModCommand { get; }
     public RelayCommand OpenCommand { get; }
+
+    /// <summary>
+    /// Starts a mod: the folder, package.xml, and source sheets already carrying the
+    /// official first three rows.
+    ///
+    /// The header rows are worked out from the mods already installed. The official
+    /// sheets live in a Google Drive rather than in the game, so there is nothing on the
+    /// machine to copy them from - but every mod that uses one was told to copy those
+    /// rows in whole, so the header the most of them agree on is the official one.
+    /// </summary>
+    private List<SheetTemplate>? _templates;
+
+    private async void StartAMod()
+    {
+        if (_app.Paths is null)
+        {
+            StatusMessage = "Elin has not been found yet, so there is nowhere to put a mod.";
+            return;
+        }
+
+        // Reading every workbook in the library took twenty-four seconds on a real one,
+        // and doing it on this thread froze the window for all of them - the button
+        // looked broken rather than busy. Done once, off the thread, and kept.
+        if (_templates is null)
+        {
+            StatusMessage = "Reading the header rows out of your installed mods...";
+
+            try
+            {
+                _templates = await Task.Run(() => SourceSheetTemplates.Harvest(Workbooks()));
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Could not read source sheet headers", ex);
+                _templates = new List<SheetTemplate>();
+            }
+
+            StatusMessage = null;
+        }
+
+        var model = new NewModViewModel(_app.Paths, _templates);
+
+        var window = new Views.NewModWindow(model)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        if (window.ShowDialog() != true) return;
+
+        string folder;
+
+        try
+        {
+            folder = NewMod.Create(_app.Paths, model.ToRequest());
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Could not create the mod",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        StatusMessage = $"Created {folder}. Add a preview.jpg to it before publishing - "
+                        + "the Workshop wants one, and the game shows it in the mod list.";
+
+        ShellService.OpenFolder(folder);
+        _onChanged();
+    }
+
+    /// <summary>Every workbook in the library, which is where the header rows come from.</summary>
+    private List<string> Workbooks()
+    {
+        var books = new List<string>();
+
+        foreach (var mod in _app.Scan.Mods)
+        {
+            try
+            {
+                books.AddRange(Directory
+                    .GetFiles(mod.Directory, "*.xlsx", SearchOption.AllDirectories)
+                    .Where(f => !Path.GetFileName(f).StartsWith("~$", StringComparison.Ordinal)));
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn($"Could not look for sheets in {mod.Directory}: {ex.Message}");
+            }
+        }
+
+        return books;
+    }
     public RelayCommand OpenFolderCommand { get; }
     public RelayCommand OpenWorkshopPageCommand { get; }
     public RelayCommand ToggleDescriptionCommand { get; }

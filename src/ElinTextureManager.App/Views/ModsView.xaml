@@ -71,9 +71,17 @@
                 <TextBlock Style="{StaticResource SubtleText}" Margin="0,4,0,0"
                            Text="Sections come from the tags each mod was published under. Click a mod to browse its textures, or use the switch to turn the whole mod off." />
             </StackPanel>
-            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Top"
-                       Style="{StaticResource SubtleText}"
-                       Text="{Binding ResultCount, StringFormat={}{0} shown}" />
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Orientation="Horizontal">
+                <Button Content="Start a mod…" Style="{StaticResource SubtleButton}"
+                        Margin="0,0,12,0"
+                        Command="{Binding NewModCommand}"
+                        ToolTip="Create a mod folder with package.xml and source sheets that already have the right header rows" />
+
+                <TextBlock VerticalAlignment="Center"
+                           Style="{StaticResource SubtleText}"
+                           Text="{Binding ResultCount, StringFormat={}{0} shown}" />
+            </StackPanel>
         </Grid>
 
         <!-- ============ SECTIONS ============ -->

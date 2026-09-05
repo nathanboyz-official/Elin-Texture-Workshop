@@ -75,7 +75,20 @@ public static class XlsxWorkbook
     /// file is not a workbook at all; a damaged sheet inside comes back empty rather than
     /// taking the rest of the file down with it.
     /// </summary>
-    public static List<XlsxSheet> Read(string path)
+    /// <param name="maxRows">
+    /// Stop after this many rows of each sheet, for callers that only want the header.
+    ///
+    /// Worth less than it looks: measured over 397 real workbooks it saved almost nothing,
+    /// because the time goes on unzipping and parsing the XML rather than on building the
+    /// rows. It earns its place only on a sheet with a great many rows - the game's own
+    /// god_talk.xlsx declares one at 1,048,576 - where the arrays would otherwise be built
+    /// and thrown away.
+    ///
+    /// Rows are written in order by every spreadsheet, so stopping early is safe. A file
+    /// that somehow wrote them out of order would lose the stragglers, which is why the
+    /// default reads everything.
+    /// </param>
+    public static List<XlsxSheet> Read(string path, int maxRows = int.MaxValue)
     {
         using var archive = ZipFile.OpenRead(path);
 
@@ -100,19 +113,21 @@ public static class XlsxWorkbook
             var part = Entry(archive, target);
             if (part is null) continue;
 
-            ReadRows(part, shared, sheet);
+            ReadRows(part, shared, sheet, maxRows);
         }
 
         return sheets;
     }
 
-    private static void ReadRows(XDocument part, List<string> shared, XlsxSheet sheet)
+    private static void ReadRows(XDocument part, List<string> shared, XlsxSheet sheet,
+        int maxRows)
     {
         var counted = 0;
 
         foreach (var row in part.Descendants(Main + "row"))
         {
             counted++;
+            if (counted > maxRows) break;
 
             // The row's own number when it has one. Rows are allowed to be sparse, and a
             // count would silently move everything up.
