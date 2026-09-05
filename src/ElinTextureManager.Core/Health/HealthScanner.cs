@@ -57,6 +57,7 @@ public sealed class HealthScanner
         CheckWorkshop(scan, report);
         CheckSourceSheets(scan, report);
         CheckPlayerLog(paths, report);
+        CheckIdenticalConflicts(scan, report);
 
         report.Findings.Sort((a, b) => a.Severity != b.Severity
             ? a.Severity.CompareTo(b.Severity)
@@ -98,6 +99,65 @@ public sealed class HealthScanner
     {
         foreach (var finding in PlayerLogReader.Read(paths.PlayerLog))
             report.Findings.Add(finding);
+    }
+
+    public const string SameImageCheck = "Identical conflict";
+
+    /// <summary>
+    /// Conflicts where every mod supplies byte-for-byte the same image.
+    ///
+    /// These count towards the conflict total and look like decisions waiting to be made,
+    /// but there is nothing to decide: whichever mod wins, the picture in the game is the
+    /// same. Mods pass art between each other constantly, so on a large library this is a
+    /// real share of the number - and knowing which part of it is noise is the difference
+    /// between a list worth working through and one nobody opens.
+    /// </summary>
+    private static void CheckIdenticalConflicts(ScanResult scan, HealthReport report)
+    {
+        var identical = new List<TextureEntry>();
+
+        foreach (var entry in scan.Conflicts)
+        {
+            var hashes = entry.ModVersions
+                .Select(v => v.Hash)
+                .Where(h => !string.IsNullOrEmpty(h))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // One distinct hash across every version, and a hash for each of them - a
+            // missing hash would make two different files look like one.
+            if (hashes.Count != 1) continue;
+            if (entry.ModVersions.Any(v => string.IsNullOrEmpty(v.Hash))) continue;
+
+            identical.Add(entry);
+        }
+
+        if (identical.Count == 0) return;
+
+        var total = scan.ConflictCount;
+
+        var finding = new HealthFinding
+        {
+            Severity = HealthSeverity.Notice,
+            Check = SameImageCheck,
+            Title = $"{identical.Count} of your {total} conflicts are the same image twice",
+            Detail = "More than one mod supplies these, which is what makes them conflicts, "
+                     + "but the files are byte for byte identical - so whichever one wins, "
+                     + "the game looks the same. Mods pass art between each other, and this "
+                     + "is what that looks like from the outside.",
+            Suggestion = $"Nothing to decide on these. The {total - identical.Count} others "
+                         + "are where the mods actually disagree.",
+        };
+
+        foreach (var entry in identical.Take(12))
+        {
+            var mods = entry.ModVersions.Select(v => v.ModName).Distinct().Take(3);
+            finding.Evidence.Add($"{entry.DisplayId} — {string.Join(", ", mods)}");
+        }
+
+        if (identical.Count > 12) finding.Evidence.Add($"... and {identical.Count - 12} more");
+
+        report.Findings.Add(finding);
     }
 
     private static List<string> FindWorkbooks(string dir)

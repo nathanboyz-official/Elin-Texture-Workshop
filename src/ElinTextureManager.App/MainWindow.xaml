@@ -53,6 +53,9 @@
         <DataTemplate DataType="{x:Type vm:GuideViewModel}">
             <views:GuideView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SheetsViewModel}">
+            <views:SheetsView />
+        </DataTemplate>
 
         <!-- A heading over a group of nav entries. Engraved, not shouted. -->
         <Style x:Key="NavSectionLabel" TargetType="TextBlock">

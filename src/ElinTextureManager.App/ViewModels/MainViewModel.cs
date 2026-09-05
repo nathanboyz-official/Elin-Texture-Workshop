@@ -91,6 +91,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Setups = new SetupsViewModel(_app, OnDataChanged);
         Bisect = new BisectViewModel(_app, OnDataChanged);
         DressUp = new DressUpViewModel(_app);
+        Sheets = new SheetsViewModel(_app);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(userRequested: true), () => !IsScanning);
         NavigateCommand = new RelayCommand(p => Navigate(p as string));
@@ -119,6 +120,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public BisectViewModel Bisect { get; }
     public GuideViewModel Guide { get; } = new();
+    public SheetsViewModel Sheets { get; }
 
     public DressUpViewModel DressUp { get; }
 
@@ -268,6 +270,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Add(LibraryNav, "Objects", "Objects", "Furniture, walls and placed objects.");
         Add(LibraryNav, "DressUp", "Character Creator",
             "Build a character from the PCC parts across your mods and save it into the game.");
+        Add(LibraryNav, "Sheets", "Source Sheets",
+            "The spreadsheets mods add characters, items and recipes with.");
         Add(LibraryNav, "Pcc", "PCC Parts",
             "The layered parts characters are built from - hair, clothes, body, face. "
             + "Most character mods ship these and nothing else.");
@@ -384,6 +388,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 // Same pattern as News: show the page at once, fill it in when the
                 // assembly read lands. It runs once and then only on demand.
                 _ = Health.RunAsync();
+                break;
+            case "Sheets":
+                CurrentPage = Sheets;
+                _ = Sheets.LoadAsync();
                 break;
             case "Guide":
                 CurrentPage = Guide;

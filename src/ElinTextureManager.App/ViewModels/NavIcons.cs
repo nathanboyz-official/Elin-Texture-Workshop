@@ -100,6 +100,12 @@ public static class NavIcons
           + "M1.5,8 L3.3,8 M12.7,8 L14.5,8 M3.4,3.4 L4.7,4.7 M11.3,11.3 L12.6,12.6 "
           + "M12.6,3.4 L11.3,4.7 M4.7,11.3 L3.4,12.6");
 
+    /// <summary>A grid, for the source sheets.</summary>
+    public static Geometry Sheets { get; } =
+        Geometry.Parse(
+            "M2.5,3.5 L13.5,3.5 L13.5,12.5 L2.5,12.5 Z M2.5,6.5 L13.5,6.5 M2.5,9.5 L13.5,9.5 "
+            + "M6.2,3.5 L6.2,12.5 M9.9,3.5 L9.9,12.5");
+
     /// <summary>An open book.</summary>
     public static Geometry Guide { get; } =
         Geometry.Parse(
@@ -110,6 +116,7 @@ public static class NavIcons
     public static Geometry? ForKey(string key) => key switch
     {
         "Guide" => Guide,
+        "Sheets" => Sheets,
         "AllTextures" => AllTextures,
         "Characters" => Characters,
         "Items" => Items,
