@@ -28,6 +28,27 @@ writes to it, but the headline system is the per-texture override manager.
 
 ---
 
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/conflicts.png" alt="Conflicts"></td>
+<td width="50%"><img src="docs/screenshots/mod-health.png" alt="Mod Health"></td>
+</tr>
+<tr>
+<td><b>Conflicts</b><br>Every image supplied by more than one mod, so you can settle them one texture at a time.</td>
+<td><b>Mod Health</b><br>Reads the installed code and the game's own log, and names the mod actually responsible.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/texture-browser.png" alt="Texture browser"></td>
+<td><img src="docs/screenshots/character-creator.png" alt="Character Creator"></td>
+</tr>
+<tr>
+<td><b>Texture browser</b><br>Everything your mods replace, grouped by category and searchable.</td>
+<td><b>Character Creator</b><br>Build a PCC character from parts across every mod, with a sprite editor built in.</td>
+</tr>
+</table>
+
+---
+
 ## What it does
 
 You subscribe to texture mods on the Steam Workshop. Several of them replace the same
