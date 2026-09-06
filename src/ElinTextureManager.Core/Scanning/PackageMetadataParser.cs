@@ -55,8 +55,16 @@ public static class PackageMetadataParser
             if (bool.TryParse(Value(meta, "builtin")?.Trim(), out var builtin))
                 mod.Builtin = builtin;
 
-            if (int.TryParse(Value(meta, "loadPriority")?.Trim(), out var priority))
-                mod.LoadPriority = priority;
+            // Kept as written and as the game will read it. Clamped here rather than
+            // stored raw, because storing raw made this application disagree with the
+            // game about where three installed mods actually load.
+            var declared = Value(meta, "loadPriority")?.Trim();
+
+            if (!string.IsNullOrEmpty(declared))
+            {
+                mod.DeclaredLoadPriority = declared;
+                mod.LoadPriority = PackageLimits.Effective(declared);
+            }
         }
         catch (Exception ex)
         {

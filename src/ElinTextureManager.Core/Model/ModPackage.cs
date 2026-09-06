@@ -27,7 +27,30 @@ public sealed class ModPackage
     public List<string> Tags { get; } = new();
 
     /// <summary>loadPriority from package.xml. Lower loads earlier (Elin Core is -100).</summary>
+    /// <summary>
+    /// The priority the game will actually use, clamped the way the game clamps it.
+    /// </summary>
     public int? LoadPriority { get; set; }
+
+    /// <summary>
+    /// What package.xml literally said, before clamping. Kept because the difference is
+    /// the whole point: a mod asking for 114514 believes it loads after everything, and
+    /// in fact ties with every other mod that asked for too much.
+    /// </summary>
+    public string? DeclaredLoadPriority { get; set; }
+
+    /// <summary>True when the game will not use the number this mod asked for.</summary>
+    public bool LoadPriorityWasClamped =>
+        int.TryParse(DeclaredLoadPriority?.Trim(), out var declared)
+        && declared != Math.Clamp(declared, PackageLimits.MinLoadPriority, PackageLimits.MaxLoadPriority);
+
+    /// <summary>
+    /// True when package.xml gave something that is not a number, which the game's
+    /// int.TryParse rejects - leaving the mod on the default without saying so.
+    /// </summary>
+    public bool LoadPriorityUnreadable =>
+        !string.IsNullOrWhiteSpace(DeclaredLoadPriority)
+        && !int.TryParse(DeclaredLoadPriority.Trim(), out _);
 
     public TextureSourceType SourceType { get; set; } = TextureSourceType.Workshop;
     public DateTime LastModifiedUtc { get; set; }

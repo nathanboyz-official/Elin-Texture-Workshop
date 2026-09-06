@@ -61,6 +61,8 @@ public sealed class HealthScanner
         CheckPlayerLog(paths, report);
         CheckIdenticalConflicts(scan, report);
         CheckTextureExpandSprites(scan, selections, report);
+        CheckLoadPriorities(scan, report);
+        CheckShippedJunk(scan, report);
 
         report.Findings.Sort((a, b) => a.Severity != b.Severity
             ? a.Severity.CompareTo(b.Severity)
@@ -106,6 +108,171 @@ public sealed class HealthScanner
 
     public const string SameImageCheck = "Identical conflict";
     public const string ExpandCheck = "TextureExpand";
+    public const string PriorityCheck = "Load priority";
+    public const string JunkCheck = "Shipped by mistake";
+
+    /// <summary>
+    /// Mods asking for a load priority the game will not give them.
+    ///
+    /// The game clamps to -999..999 and silently ignores anything that is not a number.
+    /// So a mod written with 114514 in it does not load after everything - it lands on
+    /// 999 with every other mod that overreached, and which of them wins is then decided
+    /// by something none of their authors chose. That matters most where a mod's whole
+    /// job depends on being last, which is exactly what the TextureExpand mods do.
+    /// </summary>
+    private static void CheckLoadPriorities(ScanResult scan, HealthReport report)
+    {
+        var clamped = scan.Mods
+            .Where(m => m.SourceType != TextureSourceType.Vanilla && m.LoadPriorityWasClamped)
+            .ToList();
+
+        var unreadable = scan.Mods
+            .Where(m => m.SourceType != TextureSourceType.Vanilla && m.LoadPriorityUnreadable)
+            .ToList();
+
+        if (clamped.Count > 0)
+        {
+            // Who they now share the position with, since that is the actual consequence.
+            var landing = clamped
+                .Select(m => m.LoadPriority ?? PackageLimits.DefaultLoadPriority)
+                .Distinct()
+                .ToList();
+
+            var neighbours = scan.Mods
+                .Where(m => m.SourceType != TextureSourceType.Vanilla
+                            && !m.LoadPriorityWasClamped
+                            && m.LoadPriority is { } p && landing.Contains(p))
+                .Select(m => m.Name)
+                .Take(6)
+                .ToList();
+
+            var finding = new HealthFinding
+            {
+                Severity = HealthSeverity.Notice,
+                Check = PriorityCheck,
+                Title = clamped.Count == 1
+                    ? $"{clamped[0].Name} asks for a load priority the game will not give it"
+                    : $"{clamped.Count} mods ask for a load priority the game will not give them",
+                Detail = "The game clamps load priority to -999..999. These asked for more, "
+                         + "so instead of loading where their authors intended they land on "
+                         + "the limit - together, and with anything already there. Which of "
+                         + "them wins is then decided by nothing in particular.",
+                Suggestion = "Nothing to fix in the mods themselves. Worth knowing when a "
+                             + "mod that has to load last does not appear to.",
+            };
+
+            foreach (var mod in clamped.Take(10))
+            {
+                finding.ModNames.Add(mod.Name);
+                finding.Evidence.Add($"{mod.Name} — asks for {mod.DeclaredLoadPriority}, "
+                                     + $"gets {mod.LoadPriority}");
+            }
+
+            if (neighbours.Count > 0)
+                finding.Evidence.Add("already there: " + string.Join(", ", neighbours));
+
+            report.Findings.Add(finding);
+        }
+
+        if (unreadable.Count == 0) return;
+
+        var bad = new HealthFinding
+        {
+            Severity = HealthSeverity.Notice,
+            Check = PriorityCheck,
+            Title = unreadable.Count == 1
+                ? $"{unreadable[0].Name} has a load priority the game cannot read"
+                : $"{unreadable.Count} mods have a load priority the game cannot read",
+            Detail = "The game reads this with int.TryParse and does nothing when that "
+                     + $"fails, so the mod stays on the default of {PackageLimits.DefaultLoadPriority} "
+                     + "with no complaint from anywhere.",
+            Suggestion = "Only the mod's author can fix it. Worth knowing if the mod seems "
+                         + "to load in the wrong place.",
+        };
+
+        foreach (var mod in unreadable.Take(10))
+        {
+            bad.ModNames.Add(mod.Name);
+            bad.Evidence.Add($"{mod.Name} — package.xml says \"{mod.DeclaredLoadPriority}\"");
+        }
+
+        report.Findings.Add(bad);
+    }
+
+    /// <summary>Files that were never meant to be published, found inside installed mods.</summary>
+    private static readonly (string What, Func<string, bool> Match)[] Junk =
+    {
+        ("drawing source", p => Path.GetExtension(p) is ".psd" or ".xcf" or ".clip"
+                                    or ".aseprite" or ".ase" or ".sai2"),
+        ("build output", p => Path.GetExtension(p) is ".pdb" or ".cs"),
+        ("a debug log", p => Path.GetExtension(p) == ".log"
+                             || p.Contains($"{Path.DirectorySeparatorChar}.Cache{Path.DirectorySeparatorChar}",
+                                 StringComparison.OrdinalIgnoreCase)),
+        ("system litter", p => Path.GetFileName(p) is "Thumbs.db" or "desktop.ini" or ".DS_Store"),
+    };
+
+    /// <summary>
+    /// Things shipped to the Workshop that nobody meant to ship.
+    ///
+    /// Mostly harmless to a player, and worth knowing to an author: a drawing source file
+    /// is the working copy of the art, and publishing it is usually an accident rather
+    /// than a licence. One mod in a real library ships a megabyte and a half of its
+    /// author's own build log, still full of paths from their E: drive.
+    /// </summary>
+    private static void CheckShippedJunk(ScanResult scan, HealthReport report)
+    {
+        var byMod = new List<(ModPackage Mod, string What, string File, long Bytes)>();
+
+        foreach (var mod in scan.Mods.Where(m => m.SourceType != TextureSourceType.Vanilla))
+        {
+            IEnumerable<string> files;
+
+            try { files = Directory.EnumerateFiles(mod.Directory, "*", SearchOption.AllDirectories); }
+            catch { continue; }
+
+            foreach (var file in files)
+            {
+                var hit = Junk.FirstOrDefault(j => j.Match(file));
+                if (hit.What is null) continue;
+
+                long size;
+                try { size = new FileInfo(file).Length; } catch { size = 0; }
+
+                byMod.Add((mod, hit.What, Path.GetFileName(file), size));
+            }
+        }
+
+        if (byMod.Count == 0) return;
+
+        var mods = byMod.Select(j => j.Mod.Name).Distinct().Count();
+        var bytes = byMod.Sum(j => j.Bytes);
+
+        var finding = new HealthFinding
+        {
+            Severity = HealthSeverity.Notice,
+            Check = JunkCheck,
+            Title = $"{mods} mods ship files that were probably not meant to be published",
+            Detail = $"{byMod.Count} files, {bytes / 1024 / 1024.0:0.#} MB - drawing sources, "
+                     + "build output and debug logs. Harmless to play with, and worth "
+                     + "knowing about if one of them is yours: a drawing source is the "
+                     + "working copy of the art, and publishing it is usually an accident.",
+            Suggestion = "Nothing to do unless it is your own mod.",
+        };
+
+        foreach (var group in byMod
+                     .GroupBy(j => j.Mod.Name)
+                     .OrderByDescending(g => g.Sum(j => j.Bytes))
+                     .Take(10))
+        {
+            var biggest = group.OrderByDescending(j => j.Bytes).First();
+
+            finding.Evidence.Add($"{group.Key} — {group.Count()} files, "
+                                 + $"{group.Sum(j => j.Bytes) / 1024.0:N0} KB "
+                                 + $"(e.g. {biggest.File}, {biggest.What})");
+        }
+
+        report.Findings.Add(finding);
+    }
 
     /// <summary>
     /// Sprites whose TextureExpand conditions have been left behind.

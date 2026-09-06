@@ -25,10 +25,17 @@ public sealed class OverrideManager
     private readonly SelectionStore _selections;
 
     /// <summary>
-    /// loadPriority written into the override package. Elin's own packages use negative
-    /// values (Core is -100), so a large positive value places this package last.
+    /// loadPriority written into the override package, so it loads after everything and
+    /// the user's chosen texture is the one the game ends up with.
+    ///
+    /// Exactly the game's maximum, not more. This was 1000 - one past the limit - and the
+    /// game clamps with Mathf.Clamp(result, -999, 999), so the package that has to win
+    /// was silently landing on 999 and tying with whatever else asked for too much. On
+    /// one real install that was three other mods, one of them NJYMTextureExpand, whose
+    /// own reason for sitting at 999 is to load last as well. Ties are broken by nothing
+    /// in particular, so the whole point of this package was left to chance.
     /// </summary>
-    public const int DefaultLoadPriority = 1000;
+    public const int DefaultLoadPriority = Model.PackageLimits.MaxLoadPriority;
 
     public OverrideManager(ElinPaths paths, SelectionStore selections)
     {

@@ -30,7 +30,12 @@ public class OverrideTests
 
         var xml = File.ReadAllText(ws.Paths.OverridePackageXml);
         Assert.Contains("<Meta>", xml);
-        Assert.Contains("<loadPriority>1000</loadPriority>", xml);
+        // Exactly the game's maximum, not one past it. This asserted 1000 until the game's
+        // own Mathf.Clamp(result, -999, 999) turned out to move it - so the package whose
+        // whole job is to load last was quietly landing on the limit alongside whatever
+        // else had overreached.
+        Assert.Contains("<loadPriority>999</loadPriority>", xml);
+        Assert.Equal(999, ElinTextureManager.Core.Model.PackageLimits.MaxLoadPriority);
         Assert.Contains("<title>", xml);
     }
 
