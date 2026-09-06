@@ -6,6 +6,7 @@ using ElinTextureManager.Core.Model;
 using ElinTextureManager.Core.Overrides;
 using ElinTextureManager.Core.GameLog;
 using ElinTextureManager.Core.Sheets;
+using ElinTextureManager.Core.Storage;
 
 namespace ElinTextureManager.Core.Health;
 
@@ -35,7 +36,8 @@ public sealed class HealthScanner
     /// need it are simply skipped rather than guessing.
     /// </summary>
     public HealthReport Scan(ElinPaths paths, ScanResult scan, LoadOrderDocument loadOrder,
-        IReadOnlyDictionary<string, WorkshopItem>? workshop = null)
+        IReadOnlyDictionary<string, WorkshopItem>? workshop = null,
+        SelectionStore? selections = null)
     {
         var report = new HealthReport();
         _workshop = workshop;
@@ -58,6 +60,7 @@ public sealed class HealthScanner
         CheckSourceSheets(scan, report);
         CheckPlayerLog(paths, report);
         CheckIdenticalConflicts(scan, report);
+        CheckTextureExpandSprites(scan, selections, report);
 
         report.Findings.Sort((a, b) => a.Severity != b.Severity
             ? a.Severity.CompareTo(b.Severity)
@@ -102,6 +105,105 @@ public sealed class HealthScanner
     }
 
     public const string SameImageCheck = "Identical conflict";
+    public const string ExpandCheck = "TextureExpand";
+
+    /// <summary>
+    /// Sprites whose TextureExpand conditions have been left behind.
+    ///
+    /// TextureExpand gives a sprite a different image when the thing is drunk, asleep,
+    /// hostile and so on, as separate files with the condition in the name. Two mods
+    /// replacing one character therefore argue eight times rather than once, and the
+    /// conflict list shows eight rows - so it is entirely natural to settle the ordinary
+    /// picture and never notice the other seven.
+    ///
+    /// The result is a character who looks like one mod's work until it falls asleep and
+    /// then looks like another's. Nothing reports that, in the game or out of it, because
+    /// each row was answered correctly on its own terms.
+    /// </summary>
+    private static void CheckTextureExpandSprites(ScanResult scan,
+        SelectionStore? selections, HealthReport report)
+    {
+        if (selections is null) return;
+
+        // Grouped across kinds on purpose. A sprite's ordinary picture lives in
+        // "Texture Replace" and its conditioned ones in "TextureforTE", so they arrive
+        // here as different kinds under different ids - which is exactly why nothing has
+        // ever connected them, and why settling one and not the other is so easy to do.
+        var bySprite = new Dictionary<string, List<TextureEntry>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in scan.Conflicts)
+        {
+            var name = entry.Versions.FirstOrDefault()?.FileName ?? entry.DisplayId;
+            var sprite = TextureExpandName.SpriteOf(name);
+            if (sprite.Length == 0) continue;
+
+            if (!bySprite.TryGetValue(sprite, out var list))
+                bySprite[sprite] = list = new List<TextureEntry>();
+
+            list.Add(entry);
+        }
+
+        var split = new List<string>();
+        var rows = 0;
+
+        foreach (var (sprite, entries) in bySprite)
+        {
+            // Only sprites that actually have conditions. Everything else is an ordinary
+            // texture and a group of one.
+            var conditioned = entries
+                .Where(e => !TextureExpandName.Parse(
+                    e.Versions.FirstOrDefault()?.FileName ?? e.DisplayId).IsBase)
+                .ToList();
+
+            if (conditioned.Count == 0) continue;
+
+            var settled = entries.Where(e => selections.Has(e.TextureId)).ToList();
+            var open = conditioned.Where(e => !selections.Has(e.TextureId)).ToList();
+
+            // Only interesting where some of the sprite is decided and some is not. A
+            // sprite nobody has touched is just an ordinary conflict waiting its turn.
+            if (settled.Count == 0 || open.Count == 0) continue;
+
+            var chosen = settled
+                .Select(e => selections.Get(e.TextureId)?.SourceModName)
+                .Where(n => !string.IsNullOrEmpty(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var conditions = open
+                .Select(e => TextureExpandName.Parse(
+                    e.Versions.FirstOrDefault()?.FileName ?? e.DisplayId).ConditionText)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(4);
+
+            rows += open.Count;
+
+            split.Add($"{sprite} — you chose {string.Join(" / ", chosen)}, but "
+                      + $"{open.Count} of its conditions are undecided ({string.Join(", ", conditions)})");
+        }
+
+        if (split.Count == 0) return;
+
+        var finding = new HealthFinding
+        {
+            Severity = HealthSeverity.Conflict,
+            Check = ExpandCheck,
+            Title = $"{split.Count} sprites will change appearance when drunk or asleep",
+            Detail = "TextureExpand gives a sprite a different image for states like drunk, "
+                     + "asleep or hostile, and each of those is a separate file that mods "
+                     + "argue over separately. You have settled the ordinary picture on "
+                     + $"these and left {rows} of their conditions undecided, so the game "
+                     + "will use your mod for the normal sprite and whatever load order "
+                     + "picks for the rest.",
+            Suggestion = "Settle the remaining conditions on each of these with the same "
+                         + "mod you chose for the ordinary picture.",
+        };
+
+        finding.Evidence.AddRange(split.Take(16));
+        if (split.Count > 16) finding.Evidence.Add($"... and {split.Count - 16} more");
+
+        report.Findings.Add(finding);
+    }
 
     /// <summary>
     /// Conflicts where every mod supplies byte-for-byte the same image.

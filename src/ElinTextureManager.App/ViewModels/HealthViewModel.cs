@@ -207,7 +207,8 @@ public sealed class HealthViewModel : ObservableObject
             }
 
             var workshop = _app.Workshop.HasData ? _app.Workshop.Items : null;
-            var report = await Task.Run(() => _scanner.Scan(paths, scan, loadOrder, workshop));
+            var report = await Task.Run(() =>
+                _scanner.Scan(paths, scan, loadOrder, workshop, _app.Selections));
 
             _report = report;
             _hasRun = true;
