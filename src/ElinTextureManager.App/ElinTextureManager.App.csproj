@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- For the notification-area icon only. WinForms ships with the runtime, so this
+         costs nothing but build size - unlike a NuGet tray library, which would put a
+         third-party dependency in the way of anyone building this from source. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>ElinTextureWorkshop</AssemblyName>
+    <RootNamespace>ElinTextureManager.App</RootNamespace>
+    <ApplicationIcon>..\..\assets\ElinTextureWorkshop.ico</ApplicationIcon>
+    <!-- Allow framework-dependent builds to run on a newer installed runtime -->
+    <RollForward>LatestMajor</RollForward>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWindowsForms adds a global using for System.Windows.Forms, which then
+         collides with WPF's UserControl, Application and DragEventArgs in every
+         view, and System.Drawing brings its own Size and Color. Only the tray icon
+         wants either, and it says so itself. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ElinTextureManager.Core\ElinTextureManager.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Also embedded as a resource so the window and taskbar can use the crisp
+         per-size images rather than a scaled copy of the executable's icon. -->
+    <Resource Include="..\..\assets\ElinTextureWorkshop.ico" Link="AppIcon.ico" />
+
+    <!-- Tool icons, drawn as pixel art so they match the sprites they sit beside. -->
+    <Resource Include="..\..\assets\tools\tool_pencil.png" Link="Tools/tool_pencil.png" />
+    <Resource Include="..\..\assets\tools\tool_eraser.png" Link="Tools/tool_eraser.png" />
+    <Resource Include="..\..\assets\tools\tool_fill.png" Link="Tools/tool_fill.png" />
+    <Resource Include="..\..\assets\tools\tool_dropper.png" Link="Tools/tool_dropper.png" />
+    <Resource Include="..\..\assets\tools\tool_line.png" Link="Tools/tool_line.png" />
+    <Resource Include="..\..\assets\tools\tool_rect.png" Link="Tools/tool_rect.png" />
+    <Resource Include="..\..\assets\tools\tool_swap.png" Link="Tools/tool_swap.png" />
+    <Resource Include="..\..\assets\tools\tool_circle.png" Link="Tools/tool_circle.png" />
+    <Resource Include="..\..\assets\tools\tool_star.png" Link="Tools/tool_star.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ships beside the executable so someone who extracts the zip can make a desktop
+         shortcut by double-clicking, rather than being told to do it by hand. -->
+    <None Include="..\..\scripts\Create Desktop Shortcut.cmd">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\scripts\Create Desktop Shortcut.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,333 @@
+<UserControl x:Class="ElinTextureManager.App.Views.TextureBrowserView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:ElinTextureManager.App.Controls"
+             xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
+             d:DataContext="{d:DesignInstance vm:TextureBrowserViewModel}"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+
+    <UserControl.Resources>
+
+        <!-- ============ TEXTURE CARD ============
+             An archive record, not a marketing card: near-square corners, a thin
+             border, and a thumbnail well darker than the card so the image reads as
+             mounted rather than floating.
+
+             Hover moves nothing. At this density a card that grows or lifts makes
+             the whole grid twitch under the pointer. -->
+        <Style x:Key="TextureCardButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Card"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource RadiusControl}"
+                                Padding="7" SnapsToDevicePixels="True">
+                            <DockPanel>
+
+                                <!-- Caption. The filename is the identity of the record,
+                                     so it is the only thing here at full strength. -->
+                                <StackPanel DockPanel.Dock="Bottom" Margin="1,7,1,0">
+                                    <TextBlock x:Name="Name" Text="{Binding TextureId}"
+                                               FontFamily="{StaticResource UiFont}"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextPrimaryBrush}" />
+
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="10.5"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource GoldBrush}"
+                                               Visibility="{Binding HasDisplayName,
+                                                           Converter={StaticResource BoolToVis}}" />
+
+                                    <TextBlock Text="{Binding SourceSummary}" FontSize="10"
+                                               Margin="0,2,0,0"
+                                               Foreground="{StaticResource TextMutedBrush}" />
+
+                                    <TextBlock Text="{Binding CurrentLabel}" FontSize="10.5"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               ToolTip="{Binding CurrentLabel}" />
+                                </StackPanel>
+
+                                <Grid>
+                                    <Border x:Name="Well"
+                                            Background="{StaticResource CheckerboardBrush}"
+                                            CornerRadius="{StaticResource RadiusChip}"
+                                            ClipToBounds="True">
+                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform"
+                                               StretchDirection="Both" Margin="4"
+                                               RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                               RenderOptions.EdgeMode="Aliased" />
+                                    </Border>
+
+                                    <!-- Conflict: noticeable, never alarming. Rust on a
+                                         rust wash, so it registers without shouting. -->
+                                    <Border Style="{StaticResource BadgeRust}"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Margin="4" Padding="5,1"
+                                            ToolTip="More than one enabled mod supplies this image"
+                                            Visibility="{Binding HasConflict,
+                                                        Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Style="{StaticResource BadgeText}" FontSize="9"
+                                                   Foreground="{StaticResource RustBrush}"
+                                                   Text="{Binding Entry.SourceCount,
+                                                          StringFormat={}CONFLICT {0}}" />
+                                    </Border>
+
+                                    <!-- Your choice: a small gold seal, not a flood of colour. -->
+                                    <Border Style="{StaticResource BadgeGold}"
+                                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Margin="4" Padding="5,1"
+                                            ToolTip="You chose which mod supplies this image"
+                                            Visibility="{Binding HasOverride,
+                                                        Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="&#x2726;" FontSize="9.5"
+                                                   Foreground="{StaticResource GoldBrush}" />
+                                    </Border>
+
+                                    <Border Style="{StaticResource BadgeNeutral}"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            Margin="4" Padding="5,1"
+                                            ToolTip="Comes with an overlay layer, shown on its page"
+                                            Visibility="{Binding ShowOverlayBadge,
+                                                        Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="OVERLAY" Style="{StaticResource BadgeText}"
+                                                   FontSize="8.5"
+                                                   Foreground="{StaticResource TextMutedBrush}" />
+                                    </Border>
+                                </Grid>
+                            </DockPanel>
+                        </Border>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Card" Property="Background"
+                                        Value="{StaticResource SurfaceRaisedBrush}" />
+                                <Setter TargetName="Card" Property="BorderBrush"
+                                        Value="{StaticResource BorderStrongBrush}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding HasOverride}" Value="True">
+                                <Setter TargetName="Card" Property="BorderBrush"
+                                        Value="{StaticResource GoldDimBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsIdenticalConflict}" Value="True">
+                                <Setter TargetName="Name" Property="Foreground"
+                                        Value="{StaticResource TextSecondaryBrush}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="{StaticResource PagePadding}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ============ PAGE HEADING ============ -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Text="{Binding Title}" Style="{StaticResource PageTitle}" />
+                <TextBlock Text="{Binding Subtitle}" Style="{StaticResource SubtleText}"
+                           Margin="0,3,0,0" MaxWidth="760" HorizontalAlignment="Left"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Visibility="{Binding Subtitle, Converter={StaticResource NotNullToVis}}" />
+
+                <!-- Where an added portrait went. -->
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource SubtleText}"
+                           Margin="0,7,0,0" MaxWidth="760" HorizontalAlignment="Left"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Visibility="{Binding StatusMessage,
+                                        Converter={StaticResource NotNullToVis}}" />
+
+                <!-- Offered after adding. The rescan usually brings them in on its own,
+                     so this is the way out when it does not rather than a step. -->
+                <Border Margin="0,9,0,0" HorizontalAlignment="Left" MaxWidth="760"
+                        Background="{StaticResource SurfaceSunkenBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="4" Padding="12,9"
+                        Visibility="{Binding AddedNotice,
+                                     Converter={StaticResource NotNullToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding AddedNotice}" TextWrapping="Wrap"
+                                   MaxWidth="520" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+
+                        <Button Content="Restart now" Style="{StaticResource SubtleButton}"
+                                Margin="14,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding RestartCommand}"
+                                ToolTip="Close and start this application again, which rebuilds the list from the folders on disk" />
+
+                        <Button Content="Dismiss" Style="{StaticResource SubtleButton}"
+                                Margin="8,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding DismissAddedNoticeCommand}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Orientation="Horizontal" Margin="0,4,0,0">
+                <!-- Only on the portraits page: the same view model backs every category,
+                     and this button on the Items page would be a button that lies. -->
+                <Button Content="Add portrait…" Style="{StaticResource SubtleButton}"
+                        Margin="0,0,12,0"
+                        Command="{Binding AddPortraitCommand}"
+                        ToolTip="Add a picture of your own to Elin's Custom\Portrait folder, so the game offers it when choosing a portrait"
+                        Visibility="{Binding CanAddPortrait,
+                                     Converter={StaticResource BoolToVis}}" />
+
+                <TextBlock Style="{StaticResource MonoText}" Margin="0,3,0,0"
+                           Text="{Binding ResultCount, StringFormat={}{0:N0} shown}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ============ FILTER TOOLBAR ============
+             The four scope radios are one segmented control: they are mutually
+             exclusive views of the same list, which is what a segmented control
+             means and what a row of radios does not. -->
+        <Border Grid.Row="1" Style="{StaticResource Toolbar}" Margin="0,0,0,12">
+            <Grid>
+                <StackPanel Orientation="Horizontal">
+                    <Border Style="{StaticResource SegmentStrip}">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource SegmentButton}" Content="All"
+                                         GroupName="Scope"
+                                         ToolTip="Every image in this section"
+                                         IsChecked="{Binding Scope,
+                                                     Converter={StaticResource EnumMatch},
+                                                     ConverterParameter=All}" />
+                            <RadioButton Style="{StaticResource SegmentButton}" Content="Conflicts"
+                                         GroupName="Scope"
+                                         ToolTip="Only images supplied by more than one enabled mod"
+                                         IsChecked="{Binding Scope,
+                                                     Converter={StaticResource EnumMatch},
+                                                     ConverterParameter=ConflictsOnly}" />
+                            <RadioButton Style="{StaticResource SegmentButton}" Content="Overrides"
+                                         GroupName="Scope"
+                                         ToolTip="Only images where you chose the winner"
+                                         IsChecked="{Binding Scope,
+                                                     Converter={StaticResource EnumMatch},
+                                                     ConverterParameter=SelectedOnly}" />
+                            <RadioButton Style="{StaticResource SegmentButton}" Content="Undecided"
+                                         GroupName="Scope"
+                                         ToolTip="Only images you have not chosen a winner for"
+                                         IsChecked="{Binding Scope,
+                                                     Converter={StaticResource EnumMatch},
+                                                     ConverterParameter=UnselectedOnly}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Width="1" Margin="14,3" Background="{StaticResource BorderBrush}" />
+
+                    <TextBlock Text="Group" Style="{StaticResource SubtleText}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox x:Name="PrefixCombo" MinWidth="160"
+                              ToolTip="Narrow to one family of images. Only the groups present on this page are offered."
+                              ItemsSource="{Binding AvailablePrefixes}"
+                              SelectedItem="{Binding SelectedPrefixDisplay, Mode=TwoWay}" />
+
+                    <Button Content="Clear filters" Style="{StaticResource SubtleButton}"
+                            Margin="10,0,0,0"
+                            Command="{Binding ClearFiltersCommand}" />
+                </StackPanel>
+
+                <!-- Grid density. Belongs beside the grid it governs. -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Text="Size" Style="{StaticResource SubtleText}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Border Style="{StaticResource SegmentStrip}">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource SegmentButton}" Content="S"
+                                         GroupName="GridSize" MinWidth="26"
+                                         ToolTip="Small tiles - the most images on screen at once"
+                                         IsChecked="{Binding GridSmall, Mode=TwoWay}" />
+                            <RadioButton Style="{StaticResource SegmentButton}" Content="M"
+                                         GroupName="GridSize" MinWidth="26"
+                                         ToolTip="Medium tiles"
+                                         IsChecked="{Binding GridMedium, Mode=TwoWay}" />
+                            <RadioButton Style="{StaticResource SegmentButton}" Content="L"
+                                         GroupName="GridSize" MinWidth="26"
+                                         ToolTip="Large tiles - best for judging detail"
+                                         IsChecked="{Binding GridLarge, Mode=TwoWay}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ============ GRID ============ -->
+        <Grid Grid.Row="2">
+            <!-- Standard, not Recycling: the panel releases containers with
+                 IItemContainerGenerator.Remove, which is the non-recycling contract. -->
+            <ItemsControl x:Name="TextureGrid" ItemsSource="{Binding Items}"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Standard"
+                          ScrollViewer.CanContentScroll="True"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer Focusable="False" Padding="0,0,4,0">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ctrl:VirtualizingWrapPanel
+                            ItemWidth="{Binding CardWidth}"
+                            ItemHeight="{Binding CardHeight}" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Style="{StaticResource TextureCardButton}"
+                                ToolTip="{Binding SourceSummary}"
+                                Command="{Binding DataContext.OpenCommand,
+                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- ============ EMPTY STATE ============
+                 A small mark and two lines. No illustration: this is a state the
+                 user will hit often while filtering, and it must not feel like an
+                 event. -->
+            <StackPanel Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        MaxWidth="380" Margin="0,0,0,60">
+                <Path Width="26" Height="26" Stretch="Uniform" HorizontalAlignment="Center"
+                      Data="M6.2,1.4 A4.8,4.8 0 1,1 6.19,1.4 Z M9.8,9.8 L14,14"
+                      Stroke="{StaticResource BorderStrongBrush}" StrokeThickness="1"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+
+                <TextBlock Text="{Binding EmptyTitle}" HorizontalAlignment="Center"
+                           Margin="0,14,0,0"
+                           FontFamily="{StaticResource DisplayFont}" FontSize="15"
+                           TextOptions.TextFormattingMode="Ideal"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+
+                <TextBlock Text="{Binding EmptyMessage}" Style="{StaticResource SubtleText}"
+                           Margin="0,6,0,0" TextAlignment="Center"
+                           Foreground="{StaticResource TextMutedBrush}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

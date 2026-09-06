@@ -1,0 +1,143 @@
+<Window x:Class="ElinTextureManager.App.Views.PortraitImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:PortraitImportViewModel}"
+        Title="Add a portrait" Width="640" Height="700"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}"
+        TextElement.Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="{StaticResource UiFont}">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ============ THE PICTURE ============
+             Shown at the size it will be written, already fitted, so the frame is a
+             preview of the file rather than a flattering crop of it. -->
+        <Border Grid.Row="0" Width="240" Height="320"
+                HorizontalAlignment="Center"
+                Background="{StaticResource SurfaceSunkenBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="2">
+            <Grid>
+                <Image Source="{Binding Picture}" Stretch="None"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+
+                <Button Content="Import image from computer"
+                        Style="{StaticResource SubtleButton}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Command="{Binding BrowseCommand}"
+                        Visibility="{Binding HasPicture,
+                                     Converter={StaticResource InverseBoolToVis}}" />
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center"
+                    Margin="0,10,0,0">
+            <Button Content="Import image from computer"
+                    Style="{StaticResource SubtleButton}"
+                    Command="{Binding BrowseCommand}"
+                    Visibility="{Binding HasPicture,
+                                 Converter={StaticResource BoolToVis}}" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Text="{Binding PictureNote}"
+                   Style="{StaticResource SubtleText}"
+                   HorizontalAlignment="Center" Margin="0,8,0,0"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   Visibility="{Binding PictureNote,
+                                Converter={StaticResource NotNullToVis}}" />
+
+        <!-- ============ WHAT THE GAME READS OUT OF THE NAME ============
+             The group and the gender are not decoration: Elin splits the file name and
+             reads them out of it, and a portrait filed under a group nothing asks for is
+             never shown. -->
+        <Grid Grid.Row="3" Margin="0,22,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="GROUP" Style="{StaticResource SectionHeader}" Margin="0,0,0,5" />
+                <ComboBox ItemsSource="{Binding Groups}"
+                          SelectedItem="{Binding Group, Mode=TwoWay}"
+                          DisplayMemberPath="Label"
+                          ToolTip="Which list in the game this portrait shows up in" />
+                <TextBlock Text="{Binding Group.Note}" Style="{StaticResource SubtleText}"
+                           Margin="0,5,0,0" TextWrapping="Wrap" FontSize="11"
+                           Foreground="{StaticResource TextMutedBrush}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="OFFERED TO" Style="{StaticResource SectionHeader}" Margin="0,0,0,5" />
+                <ComboBox ItemsSource="{Binding Genders}"
+                          SelectedItem="{Binding Gender, Mode=TwoWay}"
+                          DisplayMemberPath="Label"
+                          ToolTip="Who the game offers this portrait to" />
+                <TextBlock Text="{Binding Gender.Note}" Style="{StaticResource SubtleText}"
+                           Margin="0,5,0,0" TextWrapping="Wrap" FontSize="11"
+                           Foreground="{StaticResource TextMutedBrush}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="4">
+                <TextBlock Text="NAME" Style="{StaticResource SectionHeader}" Margin="0,0,0,5" />
+                <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         Padding="7,5"
+                         Background="{StaticResource SurfaceSunkenBrush}"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         ToolTip="What to call it. Yours to choose - the game does not read anything out of this part." />
+                <TextBlock Text="{Binding NameProblem}" Style="{StaticResource SubtleText}"
+                           Margin="0,5,0,0" TextWrapping="Wrap" FontSize="11"
+                           Foreground="{StaticResource DangerBrush}"
+                           Visibility="{Binding HasNameProblem,
+                                        Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ============ THE FILE THAT WILL BE WRITTEN ============ -->
+        <StackPanel Grid.Row="4" VerticalAlignment="Top" Margin="0,22,0,0">
+            <TextBlock Text="SAVED AS" Style="{StaticResource SectionHeader}" Margin="0,0,0,5" />
+
+            <Border Background="{StaticResource SurfaceSunkenBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="4" Padding="12,10">
+                <TextBlock Text="{Binding OutputName}" FontFamily="Consolas" FontSize="15"
+                           Foreground="{StaticResource AccentBrush}"
+                           HorizontalAlignment="Center" />
+            </Border>
+
+            <TextBlock Style="{StaticResource SubtleText}" Margin="0,8,0,0"
+                       TextWrapping="Wrap" FontSize="11"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       Text="Elin reads the group and who it is offered to out of the file name itself, so this shape is not decoration - a portrait named anything else loads and is then never shown by anything." />
+        </StackPanel>
+
+        <!-- ============ DONE ============ -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Center"
+                    Margin="0,14,0,0">
+            <Button Content="Create portrait" Style="{StaticResource PrimaryButton}"
+                    MinWidth="170" Padding="18,9"
+                    IsDefault="True" Click="OnCreate"
+                    IsEnabled="{Binding CanCreate}" />
+
+            <Button Content="Cancel" Style="{StaticResource SubtleButton}"
+                    Margin="10,0,0,0" Padding="18,9"
+                    IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

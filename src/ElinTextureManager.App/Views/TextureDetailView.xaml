@@ -1,0 +1,445 @@
+<UserControl x:Class="ElinTextureManager.App.Views.TextureDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:TextureDetailViewModel}">
+
+    <UserControl.Resources>
+
+        <!-- ============ VERSION CARD ============ -->
+        <DataTemplate x:Key="VersionCard" DataType="{x:Type vm:TextureVersionViewModel}">
+            <Border x:Name="Card" Width="260" Margin="0,0,14,14" Padding="12"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="{StaticResource RadiusPanel}">
+                <StackPanel>
+
+                    <!-- Preview -->
+                    <Border Background="{StaticResource CheckerboardBrush}" Height="200"
+                            CornerRadius="{StaticResource RadiusChip}" ClipToBounds="True">
+                        <Image Source="{Binding Image}" Stretch="Uniform" StretchDirection="Both"
+                               Margin="6"
+                               RenderOptions.BitmapScalingMode="NearestNeighbor"
+                               RenderOptions.EdgeMode="Aliased" />
+                    </Border>
+
+                    <!-- Status pills -->
+                    <WrapPanel Margin="0,10,0,0">
+                        <Border Style="{StaticResource BadgeBlue}" Margin="0,0,6,4"
+                                Visibility="{Binding IsWinner, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="CURRENT WINNER" FontSize="9.5" FontWeight="SemiBold"
+                                       Foreground="{StaticResource AccentBrush}" />
+                        </Border>
+
+                        <Border Style="{StaticResource BadgeGold}" Margin="0,0,6,4"
+                                Visibility="{Binding IsChosen, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="&#x2713; SELECTED" FontSize="9.5" FontWeight="SemiBold"
+                                       Foreground="{StaticResource SelectedBrush}" />
+                        </Border>
+
+                        <Border Style="{StaticResource Pill}" Background="{StaticResource SurfaceHoverBrush}"
+                                Margin="0,0,6,4"
+                                Visibility="{Binding IsIdenticalToWinner,
+                                            Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="IDENTICAL TEXTURE" FontSize="9.5"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Border>
+
+                        <Border Style="{StaticResource BadgeRust}" Margin="0,0,6,4"
+                                Visibility="{Binding IsVariant, Converter={StaticResource BoolToVis}}">
+                            <TextBlock FontSize="9.5" Foreground="{StaticResource ConflictBrush}"
+                                       Text="{Binding VariantName, StringFormat={}VARIANT: {0}}" />
+                        </Border>
+
+                        <Border Style="{StaticResource Pill}" Background="{StaticResource SurfaceHoverBrush}"
+                                Margin="0,0,6,4"
+                                ToolTip="Byte for byte the base game's own file, so this replaces nothing"
+                                Visibility="{Binding IsIdenticalToOriginal,
+                                            Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="SAME AS ORIGINAL" FontSize="9.5"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Border>
+
+                        <Border Style="{StaticResource BadgeNeutral}" Margin="0,0,6,4"
+                                Visibility="{Binding IsVanilla, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="BASE GAME" FontSize="9.5" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Border>
+                    </WrapPanel>
+
+                    <!-- Source information -->
+                    <TextBlock Text="{Binding ModName}" FontWeight="SemiBold" FontSize="13.5"
+                               Margin="0,8,0,0" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+
+                    <TextBlock Style="{StaticResource MonoText}" Margin="0,5,0,0">
+                        <Run Text="Workshop ID" Foreground="{StaticResource TextMutedBrush}" />
+                        <Run Text="{Binding WorkshopId, Mode=OneWay, TargetNullValue=-}" />
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource MonoText}">
+                        <Run Text="Size" Foreground="{StaticResource TextMutedBrush}" />
+                        <Run Text="{Binding Dimensions, Mode=OneWay}" />
+                        <Run Text="·" />
+                        <Run Text="{Binding FileSizeText, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource MonoText}" ToolTip="{Binding HashFull}">
+                        <Run Text="SHA-256" Foreground="{StaticResource TextMutedBrush}" />
+                        <Run Text="{Binding HashShort, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource MonoText}" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding FullPath}" Text="{Binding SourceKindLabel}" />
+
+                    <!-- Actions: the primary button gets its own full-width row so the
+                         label can never be clipped by the card width. -->
+                    <Button Content="USE THIS TEXTURE" Margin="0,11,0,0" Padding="8,8"
+                            Style="{StaticResource SuccessButton}"
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding DataContext.SelectCommand,
+                                      RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}" />
+
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" Content="Compare" Padding="9,6"
+                                Style="{StaticResource SubtleButton}"
+                                Command="{Binding DataContext.ToggleCompareCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" />
+
+                        <Button Grid.Column="1" Content="Open source" Margin="6,0,0,0" Padding="9,6"
+                                Style="{StaticResource SubtleButton}"
+                                ToolTip="Reveal the source file in Explorer"
+                                Command="{Binding DataContext.OpenSourceFolderCommand,
+                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                    <Setter TargetName="Card" Property="BorderBrush"
+                            Value="{StaticResource SelectedBrush}" />
+                    <Setter TargetName="Card" Property="Background" Value="{StaticResource GoldToneBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsWinner}" Value="True">
+                    <Setter TargetName="Card" Property="BorderBrush"
+                            Value="{StaticResource AccentBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsSelectedForCompare}" Value="True">
+                    <Setter TargetName="Card" Property="BorderThickness" Value="2" />
+                    <Setter TargetName="Card" Property="BorderBrush"
+                            Value="{StaticResource ConflictBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,18,20,24">
+        <StackPanel>
+
+            <!-- ============ HEADER ============ -->
+            <Grid>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding TextureId}" Style="{StaticResource PageTitle}" />
+                        <Border Style="{StaticResource Pill}" Margin="12,4,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Category}" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding SourceSummary}" Style="{StaticResource SubtleText}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <!-- Alias editing -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <TextBlock Text="Name" Style="{StaticResource SubtleText}"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Width="170" Text="{Binding AliasDraft, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Give this texture a name you will recognise, e.g. Gaki" />
+                    <Button Content="Save" Margin="6,0,0,0" Style="{StaticResource SubtleButton}"
+                            Command="{Binding SaveAliasCommand}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Status message -->
+            <Border Style="{StaticResource Card}" Padding="12,9" Margin="0,14,0,0"
+                    Background="{StaticResource SurfaceRaisedBrush}"
+                    Visibility="{Binding StatusMessage, Converter={StaticResource NotNullToVis}}">
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyText}" />
+            </Border>
+
+            <!-- ============ WHAT IS LOADED, AND WHAT IT REPLACED ============
+                 These are the two reference images: the one the game currently uses
+                 and the one it started from. Side by side, because that is the
+                 comparison the whole application exists to make, and stacking them
+                 pushed the list of alternatives off the bottom of the screen. -->
+            <Grid Margin="0,22,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                    <TextBlock Text="CURRENT ACTIVE TEXTURE" Style="{StaticResource SectionHeader}" />
+
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Width="224" Height="224"
+                            Background="{StaticResource CheckerboardBrush}"
+                            CornerRadius="{StaticResource RadiusControl}" ClipToBounds="True">
+                        <Image Source="{Binding WinnerVersion.Image}" Stretch="Uniform"
+                               StretchDirection="Both" Margin="8"
+                               RenderOptions.BitmapScalingMode="NearestNeighbor"
+                               RenderOptions.EdgeMode="Aliased" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="22,4,0,0" VerticalAlignment="Top">
+                        <TextBlock Text="{Binding WinnerLabel}" FontSize="18" FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+
+                        <WrapPanel Margin="0,8,0,0">
+                            <Border Style="{StaticResource BadgeNeutral}" Margin="0,0,6,4">
+                                <TextBlock Text="{Binding ConfidenceLabel}"
+                                           Style="{StaticResource BadgeText}" FontWeight="Normal"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </Border>
+
+                            <!-- Gold, because this one is here by your decision. -->
+                            <Border Style="{StaticResource BadgeGold}" Margin="0,0,6,4"
+                                    Visibility="{Binding HasOverride,
+                                                Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource BadgeText}"
+                                           Foreground="{StaticResource GoldBrush}"
+                                           Text="{Binding OverrideSourceName,
+                                                  StringFormat={}YOUR OVERRIDE &#x2014; {0}}" />
+                            </Border>
+                        </WrapPanel>
+
+                        <!-- The facts about the file the game is actually loading.
+                             They were only on the source cards below, which meant
+                             scrolling to answer "what am I looking at". -->
+                        <StackPanel Margin="0,14,0,0"
+                                    Visibility="{Binding WinnerVersion,
+                                                Converter={StaticResource NotNullToVis}}">
+                            <TextBlock Style="{StaticResource MonoText}">
+                                <Run Text="Workshop ID" Foreground="{StaticResource TextMutedBrush}" />
+                                <Run Text="{Binding WinnerVersion.WorkshopId, Mode=OneWay,
+                                            TargetNullValue=-}"
+                                     Foreground="{StaticResource TextSecondaryBrush}" />
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource MonoText}">
+                                <Run Text="Size" Foreground="{StaticResource TextMutedBrush}" />
+                                <Run Text="{Binding WinnerVersion.Dimensions, Mode=OneWay}"
+                                     Foreground="{StaticResource TextSecondaryBrush}" />
+                                <Run Text="&#x00B7;" Foreground="{StaticResource TextMutedBrush}" />
+                                <Run Text="{Binding WinnerVersion.FileSizeText, Mode=OneWay}"
+                                     Foreground="{StaticResource TextSecondaryBrush}" />
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource MonoText}"
+                                       ToolTip="{Binding WinnerVersion.HashFull}">
+                                <Run Text="SHA-256" Foreground="{StaticResource TextMutedBrush}" />
+                                <Run Text="{Binding WinnerVersion.HashShort, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource MonoText}" Margin="0,4,0,0"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding WinnerVersion.FullPath}"
+                                       ToolTip="{Binding WinnerVersion.FullPath}" />
+                        </StackPanel>
+
+                        <!-- Honest about what cannot be determined locally -->
+                        <Border Margin="0,12,0,0" Padding="11,8" CornerRadius="{StaticResource RadiusControl}"
+                                Background="{StaticResource RustToneBrush}"
+                                Visibility="{Binding IsUncertain,
+                                            Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource BodyText}" FontSize="12"
+                                       Text="Not all sources for this texture appear in loadorder.txt, so which one Elin loads cannot be determined for certain. Selecting a version below removes the ambiguity." />
+                        </Border>
+
+                        <Border Margin="0,12,0,0" Padding="11,8" CornerRadius="{StaticResource RadiusControl}"
+                                Background="{StaticResource SurfaceRaisedBrush}"
+                                Visibility="{Binding AllIdentical,
+                                            Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource BodyText}" FontSize="12"
+                                       Text="Every installed version of this texture is byte-identical, so the choice makes no visual difference." />
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0"
+                                    Visibility="{Binding HasOverride,
+                                                Converter={StaticResource BoolToVis}}">
+                            <Button Content="REMOVE OVERRIDE" Style="{StaticResource DangerButton}"
+                                    Command="{Binding RemoveOverrideCommand}" />
+                            <TextBlock Style="{StaticResource SubtleText}" VerticalAlignment="Center"
+                                       Margin="12,0,0,0"
+                                       Text="Elin will fall back to its normal load-order winner." />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+                </StackPanel>
+
+                <!-- The base game's own file, when it ships as a loose one. -->
+                <StackPanel Grid.Column="1" Width="292">
+                    <TextBlock Text="ORIGINAL" Style="{StaticResource SectionHeader}" />
+
+                    <ContentControl Content="{Binding Original}"
+                                    ContentTemplate="{StaticResource VersionCard}"
+                                    HorizontalAlignment="Left"
+                                    Visibility="{Binding HasOriginal,
+                                                Converter={StaticResource BoolToVis}}" />
+
+                    <Border Style="{StaticResource Card}" Padding="12,10"
+                            Visibility="{Binding HasOriginal,
+                                        Converter={StaticResource InverseBoolToVis}}">
+                        <TextBlock Text="{Binding OriginalNote}" TextWrapping="Wrap" FontSize="11.5"
+                                   Foreground="{StaticResource TextMutedBrush}" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <!-- ============ SIDE-BY-SIDE COMPARISON ============ -->
+            <Grid Margin="0,22,0,0"
+                  Visibility="{Binding CompareMode, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock Text="SIDE BY SIDE" Style="{StaticResource SectionHeader}"
+                                   Margin="0" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="{Binding AbLabel}" Style="{StaticResource SubtleButton}"
+                                    Command="{Binding ToggleAbCommand}"
+                                    ToolTip="Flip between A and B in the same spot to spot small differences" />
+                            <Button Content="Clear" Margin="6,0,0,0"
+                                    Style="{StaticResource SubtleButton}"
+                                    Command="{Binding ClearCompareCommand}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <Border Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                <TextBlock Text="A" Style="{StaticResource SectionHeader}" />
+                                <Border Background="{StaticResource CheckerboardBrush}" Height="300"
+                                        CornerRadius="{StaticResource RadiusChip}" ClipToBounds="True">
+                                    <Image Source="{Binding CompareA.Image}" Stretch="Uniform"
+                                           StretchDirection="Both" Margin="6"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                </Border>
+                                <TextBlock Text="{Binding CompareA.ModName}" Margin="0,7,0,0"
+                                           Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding CompareA.Dimensions}"
+                                           Style="{StaticResource MonoText}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="8,0">
+                                <TextBlock Text="B" Style="{StaticResource SectionHeader}" />
+                                <Border Background="{StaticResource CheckerboardBrush}" Height="300"
+                                        CornerRadius="{StaticResource RadiusChip}" ClipToBounds="True">
+                                    <Image Source="{Binding CompareB.Image}" Stretch="Uniform"
+                                           StretchDirection="Both" Margin="6"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                </Border>
+                                <TextBlock Text="{Binding CompareB.ModName}" Margin="0,7,0,0"
+                                           Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding CompareB.Dimensions}"
+                                           Style="{StaticResource MonoText}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                                <TextBlock Text="A / B TOGGLE" Style="{StaticResource SectionHeader}" />
+                                <Border Background="{StaticResource CheckerboardBrush}" Height="300"
+                                        CornerRadius="{StaticResource RadiusChip}" ClipToBounds="True">
+                                    <Image Source="{Binding AbCurrent.Image}" Stretch="Uniform"
+                                           StretchDirection="Both" Margin="6"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                </Border>
+                                <TextBlock Text="{Binding AbCurrent.ModName}" Margin="0,7,0,0"
+                                           Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                <TextBlock Style="{StaticResource MonoText}"
+                                           Text="Click the button above to flip" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <!-- ============ OVERLAY ============ -->
+            <StackPanel Visibility="{Binding HasOverlay, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal" Margin="0,24,0,10">
+                    <TextBlock Text="OVERLAY LAYER" Style="{StaticResource SectionHeader}"
+                               Margin="0" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Pill}" Margin="10,0,0,0"
+                            Background="{StaticResource SurfaceHoverBrush}">
+                        <TextBlock Text="{Binding OverlayId}" FontSize="9.5"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                    </Border>
+                    <TextBlock Text="{Binding OverlaySummary}" Style="{StaticResource SubtleText}"
+                               Margin="10,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Style="{StaticResource SubtleText}" Margin="0,0,0,10" MaxWidth="760"
+                           HorizontalAlignment="Left"
+                           Text="Elin draws this on top of the portrait above, so it is not a picture in its own right and has no tile of its own in the grid. It is still a separate file: selecting a version here overrides the overlay, not the portrait." />
+
+                <ItemsControl ItemsSource="{Binding OverlayVersions}"
+                              ItemTemplate="{StaticResource VersionCard}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- ============ AVAILABLE VERSIONS ============ -->
+            <TextBlock Text="AVAILABLE VERSIONS" Style="{StaticResource SectionHeader}"
+                       Margin="0,24,0,10" />
+
+            <ItemsControl ItemsSource="{Binding Versions}"
+                          ItemTemplate="{StaticResource VersionCard}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+
+            <!-- ============ VARIANTS ============ -->
+            <StackPanel Visibility="{Binding HasVariants, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="VARIANTS (NOT LOADED BY ELIN UNTIL SELECTED)"
+                           Style="{StaticResource SectionHeader}" Margin="0,16,0,10" />
+                <TextBlock Style="{StaticResource SubtleText}" Margin="0,0,0,10" MaxWidth="760"
+                           HorizontalAlignment="Left"
+                           Text="These sit in sub-folders of a mod's Texture Replace folder, so the game ignores them. Selecting one copies it into your override package, which does make it active." />
+
+                <ItemsControl ItemsSource="{Binding Variants}"
+                              ItemTemplate="{StaticResource VersionCard}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

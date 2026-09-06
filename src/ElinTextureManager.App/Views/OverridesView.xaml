@@ -1,0 +1,184 @@
+<UserControl x:Class="ElinTextureManager.App.Views.OverridesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:OverridesViewModel}">
+
+    <Grid Margin="{StaticResource PagePadding}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Text="Selected Overrides" Style="{StaticResource PageTitle}" />
+                <TextBlock Style="{StaticResource SubtleText}" Margin="0,4,0,0"
+                           Text="Textures you picked. Each one is a copy inside your override package - the Workshop mods they came from are never modified." />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Button Content="Open Override Folder" Style="{StaticResource SubtleButton}"
+                        Command="{Binding OpenOverrideFolderCommand}" />
+                <Button Content="Import" Margin="6,0,0,0" Style="{StaticResource SubtleButton}"
+                        Command="{Binding ImportCommand}" />
+                <Button Content="Export" Margin="6,0,0,0" Style="{StaticResource SubtleButton}"
+                        Command="{Binding ExportCommand}" />
+                <Button Content="Export as Mod" Margin="6,0,0,0" Style="{StaticResource SubtleButton}"
+                        Command="{Binding ExportAsModCommand}" />
+                <!-- Destructive, so it is marked in red text - but not given the
+                     loudest surface on the page. The confirmation dialog is the
+                     real guard; visual shouting is not. -->
+                <Button Content="Clear All Overrides" Margin="6,0,0,0"
+                        Style="{StaticResource SubtleButton}"
+                        Foreground="{StaticResource DangerBrush}"
+                        Command="{Binding ClearAllCommand}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Notices -->
+        <StackPanel Grid.Row="1">
+            <Border Style="{StaticResource Card}" Padding="12,9" Margin="0,0,0,12"
+                    Background="{StaticResource SurfaceRaisedBrush}"
+                    Visibility="{Binding StatusMessage, Converter={StaticResource NotNullToVis}}">
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyText}" />
+            </Border>
+
+            <Border Padding="12,9" Margin="0,0,0,12" CornerRadius="{StaticResource RadiusControl}" Background="{StaticResource RustToneBrush}"
+                    Visibility="{Binding HasAttention, Converter={StaticResource BoolToVis}}">
+                <TextBlock Style="{StaticResource BodyText}"
+                           Foreground="{StaticResource TextPrimaryBrush}">
+                    <Run Text="{Binding AttentionCount, Mode=OneWay}" FontWeight="Bold" />
+                    <Run Text="of your overrides need attention - a source mod changed or is no longer installed. Nothing was changed automatically." />
+                </TextBlock>
+            </Border>
+        </StackPanel>
+
+        <!-- List -->
+        <Grid Grid.Row="2">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border x:Name="Row" Style="{StaticResource Card}" Padding="10"
+                                    Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Preview -->
+                                    <Border Grid.Column="0" Width="64" Height="64"
+                                            Background="{StaticResource CheckerboardBrush}"
+                                            CornerRadius="{StaticResource RadiusControl}" ClipToBounds="True">
+                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform"
+                                               StretchDirection="Both" Margin="4"
+                                               RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                    </Border>
+
+                                    <!-- Detail -->
+                                    <StackPanel Grid.Column="1" Margin="14,2,12,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding DisplayId}" FontSize="15"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                            <TextBlock Text="&#x2190;" Margin="10,0,8,0"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding SourceModName}" FontSize="14"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource SelectedBrush}" />
+                                        </StackPanel>
+
+                                        <TextBlock Style="{StaticResource MonoText}" Margin="0,5,0,0">
+                                            <Run Text="Workshop ID" Foreground="{StaticResource TextMutedBrush}" />
+                                            <Run Text="{Binding WorkshopId, Mode=OneWay, TargetNullValue=-}" />
+                                            <Run Text="  ·  selected" Foreground="{StaticResource TextMutedBrush}" />
+                                            <Run Text="{Binding SelectedDate, Mode=OneWay}" />
+                                        </TextBlock>
+
+                                        <TextBlock Text="{Binding SourcePath}"
+                                                   Style="{StaticResource MonoText}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding SourcePath}" />
+
+                                        <!-- Attention state -->
+                                        <StackPanel Margin="0,8,0,0"
+                                                    Visibility="{Binding NeedsAttention,
+                                                                Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding StateLabel}" FontSize="11"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource ConflictBrush}" />
+                                            <TextBlock Text="{Binding StateDetail}"
+                                                       Style="{StaticResource SubtleText}"
+                                                       Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Actions -->
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                        <Button Content="UPDATE TO NEW VERSION" Margin="0,0,0,5"
+                                                Style="{StaticResource PrimaryButton}"
+                                                Command="{Binding DataContext.UpdateToNewCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Visibility="{Binding CanUpdateToNewVersion,
+                                                            Converter={StaticResource BoolToVis}}" />
+
+                                        <Button Content="Change" Margin="0,0,0,5"
+                                                Command="{Binding DataContext.ChangeCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" />
+
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="Source" Style="{StaticResource SubtleButton}"
+                                                    ToolTip="Open the source mod file in Explorer"
+                                                    Command="{Binding DataContext.OpenSourceFolderCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Copy" Margin="5,0,0,0"
+                                                    Style="{StaticResource SubtleButton}"
+                                                    ToolTip="Reveal the copied override file"
+                                                    Command="{Binding DataContext.RevealOverrideCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Remove" Margin="5,0,0,0"
+                                                    Style="{StaticResource DangerButton}"
+                                                    Padding="10,5" FontSize="12"
+                                                    Command="{Binding DataContext.RemoveCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding NeedsAttention}" Value="True">
+                                    <Setter TargetName="Row" Property="BorderBrush"
+                                            Value="{StaticResource ConflictBrush}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Empty state -->
+            <StackPanel Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"
+                        VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460">
+                <TextBlock Text="No overrides selected yet" Style="{StaticResource PageTitle}"
+                           HorizontalAlignment="Center" />
+                <TextBlock Style="{StaticResource SubtleText}" TextAlignment="Center" Margin="0,8,0,0"
+                           Text="Open Conflicts or All Textures, click a texture to compare every installed version, then press USE THIS TEXTURE on the one you want." />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

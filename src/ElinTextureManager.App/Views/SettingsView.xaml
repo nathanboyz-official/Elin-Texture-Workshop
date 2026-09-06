@@ -1,0 +1,236 @@
+<UserControl x:Class="ElinTextureManager.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ElinTextureManager.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:SettingsViewModel}">
+
+    <UserControl.Resources>
+        <Style x:Key="PathRow" TargetType="Border" BasedOn="{StaticResource Card}">
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,18,20,24">
+        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
+
+            <TextBlock Text="Settings" Style="{StaticResource PageTitle}" />
+
+            <Border Style="{StaticResource Card}" Padding="12,9" Margin="0,14,0,0"
+                    Background="{StaticResource SurfaceRaisedBrush}"
+                    Visibility="{Binding StatusMessage, Converter={StaticResource NotNullToVis}}">
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyText}" />
+            </Border>
+
+            <!-- ============ PATHS ============ -->
+            <TextBlock Text="FOLDERS" Style="{StaticResource SectionHeader}" Margin="0,22,0,8" />
+
+            <Border Style="{StaticResource PathRow}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="ELIN INSTALLATION" Style="{StaticResource SectionHeader}"
+                                   Margin="0,0,0,3" />
+                        <TextBlock Text="{Binding ElinPath}" Style="{StaticResource MonoText}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Open" Style="{StaticResource SubtleButton}"
+                                Command="{Binding OpenElinFolderCommand}" />
+                        <Button Content="Change" Margin="6,0,0,0"
+                                Command="{Binding BrowseElinCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource PathRow}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="WORKSHOP FOLDER" Style="{StaticResource SectionHeader}"
+                                   Margin="0,0,0,3" />
+                        <TextBlock Text="{Binding WorkshopPath}" Style="{StaticResource MonoText}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Open" Style="{StaticResource SubtleButton}"
+                                Command="{Binding OpenWorkshopFolderCommand}" />
+                        <Button Content="Change" Margin="6,0,0,0"
+                                Command="{Binding BrowseWorkshopCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource PathRow}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="OVERRIDE MOD" Style="{StaticResource SectionHeader}"
+                                   Margin="0,0,0,3" />
+                        <TextBlock Text="{Binding OverridePath}" Style="{StaticResource MonoText}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Style="{StaticResource SubtleText}" Margin="0,5,0,0"
+                                   Text="The only folder this application ever writes textures into." />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Create" Style="{StaticResource SubtleButton}"
+                                Command="{Binding CreateOverridePackageCommand}"
+                                Visibility="{Binding OverridePackageExists,
+                                            Converter={StaticResource InverseBoolToVis}}" />
+                        <Button Content="Open Folder" Margin="6,0,0,0"
+                                Command="{Binding OpenOverrideFolderCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource PathRow}">
+                <StackPanel>
+                    <TextBlock Text="LOAD ORDER FILE" Style="{StaticResource SectionHeader}"
+                               Margin="0,0,0,3" />
+                    <TextBlock Text="{Binding LoadOrderPath}" Style="{StaticResource MonoText}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                <Button Content="Re-detect Steam and Elin" Command="{Binding RedetectCommand}" />
+                <Button Content="Open App Data Folder" Margin="6,0,0,0"
+                        Style="{StaticResource SubtleButton}"
+                        Command="{Binding OpenAppDataFolderCommand}" />
+                <Button Content="Open Logs" Margin="6,0,0,0" Style="{StaticResource SubtleButton}"
+                        Command="{Binding OpenLogFolderCommand}" />
+                <Button Content="Open Backups" Margin="6,0,0,0" Style="{StaticResource SubtleButton}"
+                        Command="{Binding OpenBackupFolderCommand}" />
+            </StackPanel>
+
+            <!-- ============ SCANNING ============ -->
+            <TextBlock Text="SCANNING" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <CheckBox Content="Auto refresh when Workshop content changes"
+                              IsChecked="{Binding AutoRefreshWorkshop}" />
+                    <CheckBox Content="Watch the Workshop folder for file changes"
+                              IsChecked="{Binding WatchFileChanges}" />
+                    <CheckBox Content="Create a backup before writing loadorder.txt"
+                              IsChecked="{Binding CreateLoadOrderBackups}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ STEAM ============ -->
+            <TextBlock Text="STEAM" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <CheckBox Content="Open Workshop links in the Steam app instead of a browser"
+                              IsChecked="{Binding OpenWorkshopInSteamApp}"
+                              IsEnabled="{Binding SteamClientInstalled}" />
+
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Text="This does not sign you in to anything. There is no Steam login, no API key and no account access anywhere in this application, and none is needed: steam:// is a link type Steam registers on this PC when you install it, so pressing Workshop just hands the link to the program already running on your machine - the same way double-clicking a text file opens your editor. Nothing is sent anywhere, nothing about your Steam account is read, and nothing is collected." />
+
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Text="Steam was not found on this PC, so Workshop links open in your browser."
+                               Visibility="{Binding SteamClientInstalled,
+                                           Converter={StaticResource InverseBoolToVis}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ WINDOW ============ -->
+            <TextBlock Text="CLOSING THE WINDOW" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <CheckBox Content="Keep running in the notification area when the window is closed"
+                              IsChecked="{Binding MinimiseToTray}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="22,6,0,0"
+                               TextWrapping="Wrap"
+                               Text="The icon sits by the clock: double-click it to open the window again, or right-click for Open, Settings and Quit. Worth leaving on, because reopening means rescanning your whole library to answer a question you only just thought of. Turn it off and the close button quits, as it did before, and the icon goes away." />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ NETWORK ============ -->
+            <TextBlock Text="NETWORK" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="These two switches are the only things that leave this machine. Everything else - scanning, conflicts, overrides, health, searching by picture - is done locally against files you already have. There is no account to sign in to, no API key, and no telemetry of any kind." />
+
+                    <CheckBox Content="Let the News page fetch Elin's announcements from Steam"
+                              IsChecked="{Binding EnableSteamNews}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="22,6,0,0"
+                               TextWrapping="Wrap"
+                               Text="Asks api.steampowered.com for the news of app 2135150 and nothing else. Turn it off and the News page shows the last fetch it cached." />
+
+                    <CheckBox Content="Let Mod Health ask Steam what it publishes for your mods"
+                              Margin="0,14,0,0"
+                              IsChecked="{Binding EnableWorkshopChecks}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="22,6,0,0"
+                               TextWrapping="Wrap"
+                               Text="This is the one that sends something about your library: the Workshop IDs of your installed mods, which are the public numbers in every mod's URL. Nothing else goes with them - no account, no machine identifier, no file names. In return Steam says which mods have a newer version waiting and which have been taken off the Workshop. Off by default; the answer is cached so it works offline afterwards." />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ APPEARANCE ============ -->
+            <TextBlock Text="THUMBNAIL SIZE" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Content="Small" GroupName="Thumb" Margin="0,0,20,0"
+                                 IsChecked="{Binding ThumbSmall}" />
+                    <RadioButton Content="Medium" GroupName="Thumb" Margin="0,0,20,0"
+                                 IsChecked="{Binding ThumbMedium}" />
+                    <RadioButton Content="Large" GroupName="Thumb"
+                                 IsChecked="{Binding ThumbLarge}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ PRIORITY ============ -->
+            <TextBlock Text="LOAD ORDER PRIORITY" Style="{StaticResource SectionHeader}"
+                       Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="0,0,0,10"
+                               Text="Elin's loadorder.txt records the order of your Workshop mods but does not state which end wins a file conflict. Later-wins matches the usual convention and is the default; flip it if you observe the opposite in game. This only affects which mod is shown as the current winner - your own overrides are unaffected." />
+
+                    <RadioButton Content="Later entries win  (recommended)" GroupName="Convention"
+                                 IsChecked="{Binding LaterWins}" />
+                    <RadioButton Content="Earlier entries win" GroupName="Convention"
+                                 IsChecked="{Binding EarlierWins}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============ ADVANCED ============ -->
+            <TextBlock Text="ADVANCED" Style="{StaticResource SectionHeader}" Margin="0,26,0,8" />
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,24">
+                <StackPanel>
+                    <CheckBox Content="Also copy overrides into Elin\User\Texture Replace"
+                              IsChecked="{Binding MirrorOverridesToUserFolder}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="24,2,0,0"
+                               Text="Elin provides its own user-level texture replacement folder. Turning this on writes each selected texture there as well, as a fallback if the override package alone does not take effect. Removing an override removes both copies." />
+                    <TextBlock Text="{Binding UserTextureFolder}" Style="{StaticResource MonoText}"
+                               Margin="24,6,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
