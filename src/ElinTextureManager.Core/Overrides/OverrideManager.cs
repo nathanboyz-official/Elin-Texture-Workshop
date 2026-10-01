@@ -83,6 +83,38 @@ public sealed class OverrideManager
     }
 
     /// <summary>
+    /// Brings an existing package.xml's loadPriority back inside the game's range.
+    /// EnsurePackage never rewrites a package.xml that is already there, so one written by
+    /// a version that used 1000 kept it. Does nothing when there is no package yet.
+    /// </summary>
+    public bool RepairPackageXml()
+    {
+        try
+        {
+            if (!File.Exists(_paths.OverridePackageXml)) return false;
+
+            var doc = System.Xml.Linq.XDocument.Load(_paths.OverridePackageXml);
+            var element = doc.Root?.Element("loadPriority");
+            if (element is null || !int.TryParse(element.Value.Trim(), out var declared)) return false;
+
+            var effective = PackageLimits.Effective(element.Value);
+            if (declared == effective) return false;
+
+            element.Value = effective.ToString();
+            using (var writer = new StreamWriter(_paths.OverridePackageXml, false, new UTF8Encoding(false)))
+                doc.Save(writer);
+
+            AppLog.Info($"Override package loadPriority {declared} -> {effective}.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Could not repair the override package.xml", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Copies a chosen texture into the override package and records the selection.
     /// The source file is never modified.
     /// </summary>

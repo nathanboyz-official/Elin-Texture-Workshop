@@ -17,10 +17,11 @@ public enum WinnerConfidence
 }
 
 /// <summary>
-/// Which end of loadorder.txt wins a file conflict. Elin's loadorder.txt is written
-/// top-to-bottom by the game's own mod manager; later entries overriding earlier ones
-/// is the convention this defaults to, and it is exposed as a setting so a user who
-/// observes otherwise can flip it without a code change.
+/// Which end of the load order wins a file conflict. LaterWins is what the game does:
+/// packages are activated in load order, each appending its files to ModManager.replaceFiles,
+/// and TextureManager.Init then applies that list with TextureData.AddReplace, which
+/// assigns dictReplace[index] - so the last package to load overwrites the rest.
+/// Kept as a setting so a user who observes otherwise can flip it without a code change.
 /// </summary>
 public enum PriorityConvention
 {
@@ -64,34 +65,47 @@ public sealed class WinnerResolver
 
         if (candidates.Count == 0) return TextureWinner.None;
 
-        // The override package is the whole point of this application: when it supplies
-        // a texture, that is the one intended to win.
-        var overridden = candidates.FirstOrDefault(c => c.file.SourceType == TextureSourceType.Override);
-        if (overridden.file is not null)
-        {
-            return new TextureWinner(
-                overridden.file,
-                "Overridden by Elin Texture Manager",
-                WinnerConfidence.Likely,
-                IsManagerOverride: true);
-        }
-
         if (candidates.Count == 1)
         {
             var only = candidates[0].file;
-            return new TextureWinner(only, only.ModName, WinnerConfidence.Certain, false);
+            return only.SourceType == TextureSourceType.Override
+                ? new TextureWinner(only, "Overridden by Elin Texture Manager",
+                    WinnerConfidence.Likely, IsManagerOverride: true)
+                : new TextureWinner(only, only.ModName, WinnerConfidence.Certain, false);
         }
 
-        // Byte-identical candidates make the question moot.
-        var distinctHashes = candidates
-            .Select(c => c.file.Hash ?? c.file.FullPath)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-
         var ordered = OrderByPriority(candidates);
+
+        // The override package is the whole point of this application, but it is still
+        // just a package: anything the game loads after it replaces the same file again.
+        // That happens as soon as a mod is added below it in loadorder.txt, so it is
+        // checked rather than assumed.
+        var overridden = candidates.FirstOrDefault(c => c.file.SourceType == TextureSourceType.Override);
+        if (overridden.file is not null)
+        {
+            var beatenBy = ordered
+                .TakeWhile(c => c.file.SourceType != TextureSourceType.Override)
+                .FirstOrDefault(c => !SameImage(c.file, overridden.file));
+
+            if (beatenBy.file is null)
+            {
+                return Tied(ordered, overridden, out var rival)
+                    ? new TextureWinner(overridden.file,
+                        $"Overridden by Elin Texture Manager (uncertain - ties with {rival})",
+                        WinnerConfidence.Unknown, IsManagerOverride: true)
+                    : new TextureWinner(overridden.file, "Overridden by Elin Texture Manager",
+                        WinnerConfidence.Likely, IsManagerOverride: true);
+            }
+
+            return new TextureWinner(beatenBy.file,
+                $"{beatenBy.file.ModName} - loads after your override, so the game shows this instead",
+                Confidence(beatenBy), false);
+        }
+
         var winner = ordered[0];
 
-        if (distinctHashes == 1)
+        // Byte-identical candidates make the question moot.
+        if (candidates.All(c => SameImage(c.file, winner.file)))
         {
             return new TextureWinner(
                 winner.file,
@@ -100,15 +114,46 @@ public sealed class WinnerResolver
                 false);
         }
 
-        // If any candidate is missing from loadorder.txt we cannot rank it against the rest.
-        var unranked = candidates.Any(c => c.mod is null || !c.mod.InLoadOrderFile);
-        var confidence = unranked ? WinnerConfidence.Unknown : WinnerConfidence.Likely;
+        if (Tied(ordered, winner, out var tiedWith))
+        {
+            return new TextureWinner(winner.file,
+                $"{winner.file.ModName} (uncertain - ties with {tiedWith}, and the game picks either)",
+                WinnerConfidence.Unknown, false);
+        }
 
+        var confidence = Confidence(winner);
         var description = confidence == WinnerConfidence.Unknown
-            ? $"{winner.file.ModName} (uncertain - not all sources appear in loadorder.txt)"
+            ? $"{winner.file.ModName} (uncertain - its mod could not be found)"
             : winner.file.ModName;
 
         return new TextureWinner(winner.file, description, confidence, false);
+    }
+
+    private static bool SameImage(TextureFile a, TextureFile b) =>
+        string.Equals(a.Hash ?? a.FullPath, b.Hash ?? b.FullPath, StringComparison.OrdinalIgnoreCase);
+
+    private static WinnerConfidence Confidence((TextureFile file, ModPackage? mod) candidate) =>
+        candidate.mod is null ? WinnerConfidence.Unknown : WinnerConfidence.Likely;
+
+    /// <summary>
+    /// Whether another candidate with a different image sits on exactly the same priority.
+    /// The game sorts with List.Sort, which is not stable, so a tie has no defined winner.
+    /// Only reachable for a mod missing from loadorder.txt whose package.xml priority
+    /// happens to equal a listed mod's line number - listed mods each have their own line.
+    /// </summary>
+    private static bool Tied(List<(TextureFile file, ModPackage? mod)> ordered,
+        (TextureFile file, ModPackage? mod) top, out string rival)
+    {
+        rival = "";
+        if (top.mod is null) return false;
+
+        var other = ordered.FirstOrDefault(c => c.mod is not null && c.mod != top.mod
+            && c.mod.GamePriority == top.mod.GamePriority && !SameImage(c.file, top.file));
+
+        if (other.file is null) return false;
+
+        rival = other.file.ModName;
+        return true;
     }
 
     /// <summary>Highest-priority candidate first.</summary>
@@ -119,14 +164,12 @@ public sealed class WinnerResolver
 
         ranked.Sort((a, b) =>
         {
-            // Local packages sit outside loadorder.txt; treat them as loading after
-            // Workshop items, matching how Elin keeps them separate from the ordered list.
-            var aLocal = a.mod is { InLoadOrderFile: false };
-            var bLocal = b.mod is { InLoadOrderFile: false };
-            if (aLocal != bLocal) return aLocal ? -1 : 1;
+            // A file whose mod was not scanned cannot be placed; rank it last rather than
+            // let it claim a win nothing supports.
+            if ((a.mod is null) != (b.mod is null)) return a.mod is null ? 1 : -1;
 
-            var ai = a.mod?.LoadOrderIndex ?? int.MinValue;
-            var bi = b.mod?.LoadOrderIndex ?? int.MinValue;
+            var ai = a.mod?.GamePriority ?? int.MinValue;
+            var bi = b.mod?.GamePriority ?? int.MinValue;
 
             var cmp = _convention == PriorityConvention.LaterWins
                 ? bi.CompareTo(ai)

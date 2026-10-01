@@ -111,9 +111,10 @@ public static class ModdingGuide
             new GuideLine("Changing <id> after you have published makes Steam treat it as a "
                           + "different mod. Everyone subscribed to the old one keeps the old "
                           + "one, and your update reaches nobody.", GuideLineKind.Trap),
-            new GuideLine("loadorder.txt overrides loadPriority as soon as anyone reorders "
-                          + "their mods, so priority is a starting suggestion rather than a "
-                          + "guarantee.", GuideLineKind.Body),
+            new GuideLine("loadPriority only places a mod the first time the game sees it. "
+                          + "The game writes every mod into loadorder.txt whenever its Mods "
+                          + "screen closes, and from then on the line it sits on replaces "
+                          + "loadPriority completely.", GuideLineKind.Body),
         });
 
         section.Topics.Add(folders);

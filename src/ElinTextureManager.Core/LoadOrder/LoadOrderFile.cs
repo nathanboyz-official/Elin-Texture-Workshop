@@ -172,6 +172,8 @@ public static class LoadOrderFile
                 e.Path = onDisk;
             }
 
+            KeepOverridePackageLast(doc);
+
             var text = new StringBuilder();
             foreach (var e in doc.Entries) text.Append(e.Serialize()).Append("\r\n");
 
@@ -188,6 +190,29 @@ public static class LoadOrderFile
             AppLog.Error($"Failed to save load order to {path}", ex);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Moves this application's override package to the last line.
+    ///
+    /// The game replaces every listed mod's package.xml loadPriority with its line number
+    /// here (ModManager.LoadLoadOrder), so the line is the only thing that makes the
+    /// override package load last - and loading last is how the chosen texture wins. Mods
+    /// are added below it over time, by the game and by disabling a mod that was not
+    /// listed yet, so it is put back every time this file is written.
+    /// </summary>
+    public static bool KeepOverridePackageLast(LoadOrderDocument doc)
+    {
+        var index = doc.Entries.FindIndex(e => e.IsParsed && string.Equals(e.FolderName,
+            ElinPaths.OverridePackageName, StringComparison.OrdinalIgnoreCase));
+
+        if (index < 0 || index == doc.Entries.Count - 1) return false;
+
+        var entry = doc.Entries[index];
+        doc.Entries.RemoveAt(index);
+        doc.Entries.Add(entry);
+        AppLog.Info("Moved the override package back to the end of the load order.");
+        return true;
     }
 
     /// <summary>

@@ -123,12 +123,12 @@ public sealed class LoadOrderViewModel : ObservableObject
     public string LoadOrderPath => _app.Paths?.LoadOrderFile ?? "not found";
 
     /// <summary>
-    /// Explains the convention in force, since Elin's own file gives no direction and
-    /// the application would rather say so than imply certainty.
+    /// Explains the convention in force. LaterWins is what the game does (see
+    /// PriorityConvention); the setting exists for anyone who observes otherwise.
     /// </summary>
     public string ConventionNote =>
         _app.Settings.PriorityConvention == Core.Overrides.PriorityConvention.LaterWins
-            ? "Entries lower in this list are treated as higher priority."
+            ? "Mods lower in this list load later, and a later mod's texture is the one the game shows."
             : "Entries higher in this list are treated as higher priority.";
 
     public int EnabledCount => Items.Count(i => i.Enabled);
@@ -259,6 +259,10 @@ public sealed class LoadOrderViewModel : ObservableObject
 
             LoadOrderFile.ApplyTo(_app.LoadOrder, _app.Scan.Mods);
             _app.RecomputeWinners();
+
+            // Saving can reorder the file - the override package is always written last -
+            // so the rows are rebuilt from it rather than left as they were shown.
+            Apply();
             _onChanged();
         }
         else

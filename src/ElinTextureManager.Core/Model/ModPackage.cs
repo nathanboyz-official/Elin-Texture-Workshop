@@ -84,7 +84,10 @@ public sealed class ModPackage
 
     public bool ReplacesCharacters => CharacterTextureCount > 0;
 
-    /// <summary>Position in loadorder.txt; -1 when the mod is not listed.</summary>
+    /// <summary>
+    /// Position in loadorder.txt; -1 when the mod is not listed. Matches the game's own
+    /// line count except across blank lines, which the game counts and saving removes.
+    /// </summary>
     public int LoadOrderIndex { get; set; } = -1;
 
     /// <summary>Enabled flag from loadorder.txt. Mods absent from the file are treated as enabled.</summary>
@@ -92,6 +95,18 @@ public sealed class ModPackage
 
     /// <summary>True when the mod is not listed in loadorder.txt (e.g. local Package mods).</summary>
     public bool InLoadOrderFile { get; set; }
+
+    /// <summary>
+    /// The number the game actually sorts packages by, lowest loading first.
+    ///
+    /// ModManager.LoadLoadOrder overwrites every listed mod's loadPriority with the line it
+    /// sits on in loadorder.txt, after package.xml has been read. So package.xml only decides
+    /// where a mod loads while it is missing from that file - and then it is compared against
+    /// line numbers, not against other mods' package.xml.
+    /// </summary>
+    public int GamePriority => InLoadOrderFile
+        ? LoadOrderIndex
+        : LoadPriority ?? PackageLimits.DefaultLoadPriority;
 
     /// <summary>
     /// True when the mod's enabled state can be changed through loadorder.txt. Local

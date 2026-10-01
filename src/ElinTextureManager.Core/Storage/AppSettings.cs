@@ -107,7 +107,12 @@ public sealed class AppSettings
 
             var json = File.ReadAllText(path);
             var loaded = JsonSerializer.Deserialize<AppSettings>(json, SelectionStore.JsonOptions);
-            return loaded ?? new AppSettings();
+            if (loaded is null) return new AppSettings();
+
+            // Versions before 1.0.1 defaulted this to 1000, one past what the game accepts.
+            loaded.OverrideLoadPriority = Math.Clamp(loaded.OverrideLoadPriority,
+                Model.PackageLimits.MinLoadPriority, Model.PackageLimits.MaxLoadPriority);
+            return loaded;
         }
         catch (Exception ex)
         {

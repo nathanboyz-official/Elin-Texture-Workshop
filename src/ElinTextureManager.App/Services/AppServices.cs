@@ -139,6 +139,8 @@ public sealed class AppServices : IDisposable
         {
             MirrorToUserFolder = Settings.MirrorOverridesToUserFolder,
         };
+
+        Overrides.RepairPackageXml();
     }
 
     /// <summary>Runs a full scan and recomputes load order and winners.</summary>

@@ -329,17 +329,89 @@ public class WinnerResolverTests
     }
 
     [Fact]
-    public void SourcesMissingFromLoadOrderMakeTheResultUncertain()
+    public void UnlistedModsArePlacedByTheirPackagePriority()
     {
+        // The game only replaces package.xml's priority with a line number for mods that
+        // loadorder.txt lists. Anything else keeps its own, and is sorted against the
+        // line numbers - so an unlisted mod on the default 100 loads after line 0.
         using var ws = new TestWorkspace();
         var a = ws.AddWorkshopMod("111", "Listed Mod", new[] { ("objC_1.png", "a") });
         ws.AddWorkshopMod("222", "Unlisted Mod", new[] { ("objC_1.png", "b") });
+        ws.AddWorkshopMod("333", "Early Unlisted Mod", new[] { ("objC_1.png", "c") }, loadPriority: -5);
         var (scan, byKey) = ScanWithOrder(ws, (a, true));
 
         var winner = new WinnerResolver().Resolve(scan.Index["objC_1"], byKey);
 
+        Assert.Equal("Unlisted Mod", winner.File!.ModName);
+        Assert.Equal(WinnerConfidence.Likely, winner.Confidence);
+        Assert.Equal(100, byKey.Values.Single(m => m.Name == "Unlisted Mod").GamePriority);
+        Assert.Equal(0, byKey.Values.Single(m => m.Name == "Listed Mod").GamePriority);
+    }
+
+    [Fact]
+    public void AnUnlistedModLandingOnAListedLineIsUncertain()
+    {
+        // Two packages on the same number have no defined order: the game sorts with
+        // List.Sort, which is not stable.
+        using var ws = new TestWorkspace();
+        var a = ws.AddWorkshopMod("111", "Line Zero", new[] { ("objC_1.png", "a") });
+        var b = ws.AddWorkshopMod("222", "Line One", new[] { ("objC_1.png", "b") });
+        ws.AddWorkshopMod("333", "Unlisted On One", new[] { ("objC_1.png", "c") }, loadPriority: 1);
+        var (scan, byKey) = ScanWithOrder(ws, (a, true), (b, true));
+
+        var winner = new WinnerResolver().Resolve(scan.Index["objC_1"], byKey);
+
         Assert.Equal(WinnerConfidence.Unknown, winner.Confidence);
-        Assert.Contains("uncertain", winner.Description);
+        Assert.Contains("ties with", winner.Description);
+    }
+
+    [Fact]
+    public void AModBelowTheOverridePackageBeatsTheChoice()
+    {
+        // The override package is only a package. A mod after it in loadorder.txt
+        // replaces the same file again, and saying "overridden" then would be a lie.
+        using var ws = new TestWorkspace();
+        var a = ws.AddWorkshopMod("111", "Mod A", new[] { ("objC_1.png", "a") });
+        var late = ws.AddWorkshopMod("222", "Late Mod", new[] { ("objC_1.png", "late") });
+
+        var store = new SelectionStore(Path.Combine(ws.Root, "selections.json"));
+        var overrides = new OverrideManager(ws.Paths, store);
+        var first = new ModScanner().ScanSynchronously(ws.Paths);
+        overrides.Select(first.Index["objC_1"].Versions.Single(v => v.ModName == "Mod A"));
+
+        var (scan, byKey) = ScanWithOrder(ws,
+            (a, true), (ws.Paths.OverridePackageRoot, true), (late, true));
+        var winner = new WinnerResolver().Resolve(scan.Index["objC_1"], byKey);
+
+        Assert.False(winner.IsManagerOverride);
+        Assert.Equal("Late Mod", winner.File!.ModName);
+        Assert.Contains("loads after your override", winner.Description);
+
+        // Back at the bottom, the choice wins again.
+        (scan, byKey) = ScanWithOrder(ws,
+            (a, true), (late, true), (ws.Paths.OverridePackageRoot, true));
+        winner = new WinnerResolver().Resolve(scan.Index["objC_1"], byKey);
+
+        Assert.True(winner.IsManagerOverride);
+    }
+
+    [Fact]
+    public void AModBelowTheOverridePackageWithTheSameImageChangesNothing()
+    {
+        using var ws = new TestWorkspace();
+        var a = ws.AddWorkshopMod("111", "Mod A", new[] { ("objC_1.png", "same") });
+        var late = ws.AddWorkshopMod("222", "Late Copy", new[] { ("objC_1.png", "same") });
+
+        var store = new SelectionStore(Path.Combine(ws.Root, "selections.json"));
+        var overrides = new OverrideManager(ws.Paths, store);
+        var first = new ModScanner().ScanSynchronously(ws.Paths);
+        overrides.Select(first.Index["objC_1"].Versions.Single(v => v.ModName == "Mod A"));
+
+        var (scan, byKey) = ScanWithOrder(ws,
+            (a, true), (ws.Paths.OverridePackageRoot, true), (late, true));
+        var winner = new WinnerResolver().Resolve(scan.Index["objC_1"], byKey);
+
+        Assert.True(winner.IsManagerOverride);
     }
 
     [Fact]

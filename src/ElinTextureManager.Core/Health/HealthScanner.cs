@@ -62,6 +62,7 @@ public sealed class HealthScanner
         CheckIdenticalConflicts(scan, report);
         CheckTextureExpandSprites(scan, selections, report);
         CheckLoadPriorities(scan, report);
+        CheckOverridesLoadLast(scan, report);
         CheckShippedJunk(scan, report);
 
         report.Findings.Sort((a, b) => a.Severity != b.Severity
@@ -110,24 +111,91 @@ public sealed class HealthScanner
     public const string ExpandCheck = "TextureExpand";
     public const string PriorityCheck = "Load priority";
     public const string JunkCheck = "Shipped by mistake";
+    public const string OverrideOrderCheck = "Your choices";
+
+    /// <summary>
+    /// Textures picked in this application that the game will not show, because a mod that
+    /// loads after the override package supplies the same file again.
+    ///
+    /// The override package only wins by loading last, and its place is its line in
+    /// loadorder.txt. The game's own Mods screen rewrites that file every time it closes,
+    /// slotting in mods it had not listed yet by their package.xml priority - so a new mod
+    /// asking for 999 lands below the override package and quietly undoes choices.
+    /// </summary>
+    private static void CheckOverridesLoadLast(ScanResult scan, HealthReport report)
+    {
+        var package = scan.Mods.FirstOrDefault(m => m.SourceType == TextureSourceType.Override);
+        if (package is null || package.Textures.Count == 0) return;
+
+        var later = scan.Mods
+            .Where(m => m != package && m.Enabled
+                        && m.SourceType != TextureSourceType.Vanilla
+                        && m.GamePriority >= package.GamePriority)
+            .ToList();
+        if (later.Count == 0) return;
+
+        var beaten = new List<(string Texture, ModPackage By)>();
+        foreach (var mine in package.Textures.Where(t => !t.IsVariant))
+        {
+            if (!scan.Index.TryGetValue(mine.TextureId, out var entry)) continue;
+
+            var rival = entry.Versions.FirstOrDefault(v => !v.IsVariant
+                && !string.Equals(v.Hash ?? v.FullPath, mine.Hash ?? mine.FullPath, StringComparison.OrdinalIgnoreCase)
+                && later.Any(m => m.Key == v.ModKey));
+            if (rival is not null)
+                beaten.Add((mine.TextureId, later.First(m => m.Key == rival.ModKey)));
+        }
+
+        if (beaten.Count == 0) return;
+
+        var finding = new HealthFinding
+        {
+            Severity = HealthSeverity.Conflict,
+            Check = OverrideOrderCheck,
+            Title = beaten.Count == 1
+                ? "1 texture you chose is replaced by a mod that loads after your choices"
+                : $"{beaten.Count} textures you chose are replaced by mods that load after your choices",
+            Detail = "Your choices win by loading last, and a mod below them in the load order "
+                     + "replaces the same files again. The game shows that mod's version instead.",
+            Suggestion = "Save the load order from this application - the Load Order page, or "
+                         + "switching any mod on or off - and your choices are written back to "
+                         + "the bottom.",
+        };
+
+        foreach (var mod in beaten.Select(b => b.By).Distinct())
+        {
+            finding.ModKeys.Add(mod.Key);
+            finding.ModNames.Add(mod.Name);
+        }
+
+        foreach (var (texture, by) in beaten.Take(10))
+            finding.Evidence.Add($"{texture} — {by.Name} loads after your choice");
+
+        report.Findings.Add(finding);
+    }
+
 
     /// <summary>
     /// Mods asking for a load priority the game will not give them.
     ///
     /// The game clamps to -999..999 and silently ignores anything that is not a number.
     /// So a mod written with 114514 in it does not load after everything - it lands on
-    /// 999 with every other mod that overreached, and which of them wins is then decided
-    /// by something none of their authors chose. That matters most where a mod's whole
-    /// job depends on being last, which is exactly what the TextureExpand mods do.
+    /// 999 with every other mod that overreached.
+    ///
+    /// Only for mods missing from loadorder.txt, though. ModManager.LoadLoadOrder then
+    /// replaces a listed mod's priority with its line number, so for those the number in
+    /// package.xml is thrown away whatever it says, and warning about it would be noise.
     /// </summary>
     private static void CheckLoadPriorities(ScanResult scan, HealthReport report)
     {
         var clamped = scan.Mods
-            .Where(m => m.SourceType != TextureSourceType.Vanilla && m.LoadPriorityWasClamped)
+            .Where(m => m.SourceType != TextureSourceType.Vanilla
+                        && !m.InLoadOrderFile && m.LoadPriorityWasClamped)
             .ToList();
 
         var unreadable = scan.Mods
-            .Where(m => m.SourceType != TextureSourceType.Vanilla && m.LoadPriorityUnreadable)
+            .Where(m => m.SourceType != TextureSourceType.Vanilla
+                        && !m.InLoadOrderFile && m.LoadPriorityUnreadable)
             .ToList();
 
         if (clamped.Count > 0)
@@ -140,8 +208,8 @@ public sealed class HealthScanner
 
             var neighbours = scan.Mods
                 .Where(m => m.SourceType != TextureSourceType.Vanilla
-                            && !m.LoadPriorityWasClamped
-                            && m.LoadPriority is { } p && landing.Contains(p))
+                            && !clamped.Contains(m)
+                            && landing.Contains(m.GamePriority))
                 .Select(m => m.Name)
                 .Take(6)
                 .ToList();
@@ -153,12 +221,13 @@ public sealed class HealthScanner
                 Title = clamped.Count == 1
                     ? $"{clamped[0].Name} asks for a load priority the game will not give it"
                     : $"{clamped.Count} mods ask for a load priority the game will not give them",
-                Detail = "The game clamps load priority to -999..999. These asked for more, "
-                         + "so instead of loading where their authors intended they land on "
-                         + "the limit - together, and with anything already there. Which of "
-                         + "them wins is then decided by nothing in particular.",
-                Suggestion = "Nothing to fix in the mods themselves. Worth knowing when a "
-                             + "mod that has to load last does not appear to.",
+                Detail = "These mods are not in loadorder.txt yet, so the game places them by "
+                         + "the priority in their package.xml - and it clamps that to -999..999. "
+                         + "These asked for more, so they land on the limit together, and with "
+                         + "anything already there. The game's sort is not stable, so which of "
+                         + "them loads last is not decided by anything.",
+                Suggestion = "Open and close Mods in the game once: it writes every mod into "
+                             + "loadorder.txt, after which their line decides and this goes away.",
             };
 
             foreach (var mod in clamped.Take(10))
