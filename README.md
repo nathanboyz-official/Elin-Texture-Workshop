@@ -28,6 +28,27 @@ writes to it, but the headline system is the per-texture override manager.
 
 ---
 
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/conflicts.png" alt="Conflicts"></td>
+<td width="50%"><img src="docs/screenshots/mod-health.png" alt="Mod Health"></td>
+</tr>
+<tr>
+<td><b>Conflicts</b><br>Every image supplied by more than one mod, so you can settle them one texture at a time.</td>
+<td><b>Mod Health</b><br>Reads the installed code and the game's own log, and names the mod actually responsible.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/texture-browser.png" alt="Texture browser"></td>
+<td><img src="docs/screenshots/character-creator.png" alt="Character Creator"></td>
+</tr>
+<tr>
+<td><b>Texture browser</b><br>Everything your mods replace, grouped by category and searchable.</td>
+<td><b>Character Creator</b><br>Build a PCC character from parts across every mod, with a sprite editor built in.</td>
+</tr>
+</table>
+
+---
+
 ## What it does
 
 You subscribe to texture mods on the Steam Workshop. Several of them replace the same
@@ -36,7 +57,7 @@ shuffle mod order until the right one wins.
 
 Instead:
 
-1. Open Elin Texture Manager. It finds Elin and your Workshop mods on its own.
+1. Open Elin Texture Workshop. It finds Elin and your Workshop mods on its own.
 2. Click **Conflicts** to see only the textures more than one mod supplies.
 3. Click a texture. Every installed version appears side by side, as images.
 4. Press **USE THIS TEXTURE** on the one you want.
@@ -120,12 +141,85 @@ Or, when the problem is a whole mod rather than one texture:
 - Beside them, the mods Steam has touched most recently — purely local, no network needed
 - Off-switch in Settings; see [Network access](#network-access)
 
+**Mod Health — why is my game broken?**
+- Elin's crash dialog names the Harmony patches wrapping a failed call, not the mod that
+  made it, so the mod at the top of the trace is usually innocent. These checks read the
+  installed code and name the one actually responsible
+- Finds methods a mod calls that this version of Elin no longer has, the same assembly
+  shipped by two mods, missing dependencies and version drift
+- Reads the game's own `Player.log` — five thousand lines of Unity start-up that nobody
+  opens — and reports the few lines that mean something: a Harmony patch that did not
+  apply, a plugin installed twice, a source sheet the game found malformed
+- Separates conflicts that are decisions from conflicts that are not. Where every mod
+  supplies a byte-identical image there is nothing to choose
+- Notices when a sprite only half agrees with itself. TextureExpand gives one character a
+  different picture when it is drunk, asleep or hostile, and each of those is a separate
+  file that mods argue over separately — so it is easy to settle the ordinary picture and
+  leave the rest, and end up with a character drawn by one mod until it falls asleep
+- Reads `loadPriority` the way the game does. Elin clamps it to −999…999 and silently
+  ignores anything that is not a whole number, so a mod asking for 114514 does not load
+  after everything — it ties with whatever else asked for too much. And for any mod already
+  in `loadorder.txt` the game throws that number away and uses the mod's line instead,
+  which is how the application ranks winners too
+- Tells you when a mod loading after your choices replaces one of them, and puts your
+  choices back on the last line of the load order every time it saves
+
+**Find the Culprit**
+- Halves your mod list until the one that broke the game is the only one left, with a
+  control round so an innocent mod is never named
+
+**Identify**
+- Paste a screenshot from your game and it says which mod supplies what is in it
+
+**Character Creator**
+- Build a PCC character from the parts across every installed mod, with the same slots, in
+  the same order, under the same names Elin uses
+- Turn it, dye it with a colour wheel or an eyedropper that picks from anywhere on screen,
+  roll random parts, and save it where the game's own Edit Appearance screen will find it
+- Reads the characters already saved in your game
+
+**Sprite editor**
+- Draw or edit a PCC part without leaving the application: zoom, pan, brush sizes, line,
+  rectangle, ellipse, star, fill, replace-colour, undo and redo on the usual shortcuts
+- The character you are building shows through behind the canvas, and can be undressed a
+  piece at a time to see what you are drawing against
+- A second step marks which pixels become dyeable in game, shown in red
+- Saves 128×192 RGBA, four frames across by four facings down, which is what the game reads
+
+**Portraits**
+- Add your own, named the way Elin actually reads them. The game takes the group and who
+  it is offered to out of the file name itself, so a portrait named anything else loads
+  and is then never shown by anything
+- Fits your picture to 240×320 without stretching it, and leaves it untouched if it
+  already is
+
+**Source sheets**
+- Most Elin content needs no code at all — it is spreadsheets. Lists every one in your
+  library and opens it in a grid
+- The header, type and default rows the game reads first are kept exactly as they are, row
+  numbers are the spreadsheet's own, and each column header shows what an empty cell falls
+  back to
+- Checks them for the mistakes the game will not report: a row with a blank id stops the
+  sheet being read, and everything below it is dropped in silence
+- A copy of the file is kept before every save
+
+**Start a mod**
+- Creates the folder, `package.xml` with the fields the game reads, the art folders you
+  tick, and source sheets that already carry the official first three rows — worked out
+  from the mods you already have, since the official sheets are not shipped with the game
+
+**Modding guide**
+- A short reference to the parts of Elin modding that go wrong quietly, with links out to
+  the community's own documentation for everything else
+
 **Everything else**
 - Watches the Workshop folder and notices new, updated and removed mods (debounced, so a
   Steam download does not trigger a rescan storm)
 - SQLite cache of texture metadata, so repeat launches do not re-hash every PNG
 - Search across texture IDs, numbers, mod names and Workshop IDs
 - Optional per-texture aliases (`objC_2115` → "Gaki")
+- Named profiles of your texture choices, and setup files that move one between machines
+- Minimises to the notification area, with Open, Settings, Restart and Quit
 - Detects whether Elin is running and tells you to restart it, never touching the
   running game
 - Dark UI, remembers window size, filters and thumbnail size
@@ -414,14 +508,16 @@ original is opened read-only and left byte-for-byte identical.
   <id>elintexturemanager.overrides</id>
   <author>Elin Texture Manager</author>
   <builtin>false</builtin>
-  <loadPriority>1000</loadPriority>
+  <loadPriority>999</loadPriority>
   <version>1.0.0</version>
   <description>...</description>
 </Meta>
 ```
 
 Elin's own packages use negative load priorities (Elin Core is `-100`, the Modding Kit is
-`-90`), so a large positive value places this package last.
+`-90`), so the maximum places this package last — until the game lists it in
+`loadorder.txt`. From then on its line there decides, so the application keeps it on the
+last line (see below).
 
 ### Removing an override
 
@@ -455,9 +551,11 @@ Elin stores its load order at `Elin\loadorder.txt`, one line per Workshop mod:
 C:\...\steamapps\workshop\content\2135150\3427330411,1
 ```
 
-The trailing field is `1` for enabled and `0` for disabled. Local packages under
-`Elin\Package` are **not** listed there, which is why the override package relies on
-`loadPriority` instead of a load-order entry.
+The trailing field is `1` for enabled and `0` for disabled. The game sorts mods by this
+file: when it loads, every listed mod's `loadPriority` is replaced by the line it is on, and
+a mod is only placed by its `package.xml` until the game's Mods screen next closes and
+writes it in. Later mods win a texture conflict. Since the override package wins by loading
+last, every save from this application moves it back to the final line.
 
 Before the file is written, a timestamped copy is placed in
 `%APPDATA%\ElinTextureManager\Backups`:
