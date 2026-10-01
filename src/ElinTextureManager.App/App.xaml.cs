@@ -96,6 +96,19 @@ public partial class App : Application
 
     private bool _restartOnExit;
 
+    /// <summary>
+    /// Closes, and hands over to the script that copies the staged update into place and
+    /// starts the new version. Launched from OnExit for the same reason as Restart: by
+    /// then every file this application holds open has been closed.
+    /// </summary>
+    public void FinishUpdate(string script)
+    {
+        _updateScript = script;
+        Quit();
+    }
+
+    private string? _updateScript;
+
     /// <summary>Shows or hides the tray icon when the setting changes.</summary>
     public void ApplyTraySetting()
     {
@@ -122,9 +135,34 @@ public partial class App : Application
         Tray?.Dispose();
         Services.Dispose();
 
-        if (_restartOnExit) StartAgain();
+        if (_updateScript is not null) RunUpdateScript(_updateScript);
+        else if (_restartOnExit) StartAgain();
 
         base.OnExit(e);
+    }
+
+    private static void RunUpdateScript(string script)
+    {
+        try
+        {
+            AppLog.Info($"Handing over to the update script: {script}");
+
+            var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                                        "-WindowStyle", "Hidden", "-File", script })
+                psi.ArgumentList.Add(arg);
+
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Could not start the update script", ex);
+            StartAgain();
+        }
     }
 
     /// <summary>

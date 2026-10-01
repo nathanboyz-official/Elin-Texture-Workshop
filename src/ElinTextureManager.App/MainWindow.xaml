@@ -329,6 +329,37 @@
 
             <!-- Notices -->
             <StackPanel Grid.Row="1">
+                <!-- A newer release of this application. Blue, like the other notices:
+                     it is information, not a conflict and not something the user chose. -->
+                <Border Background="{StaticResource BlueToneBrush}"
+                        BorderBrush="{StaticResource BlueDimBrush}"
+                        BorderThickness="0,0,0,1" Padding="24,9"
+                        Visibility="{Binding Updates.ShowBanner, Converter={StaticResource BoolToVis}}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                    Visibility="{Binding Updates.IsIdle, Converter={StaticResource BoolToVis}}">
+                            <Button Content="What's new" Style="{StaticResource SubtleButton}"
+                                    Margin="0,0,8,0" Command="{Binding Updates.ViewReleaseCommand}"
+                                    ToolTip="Open this release's notes on GitHub" />
+                            <Button Content="Later" Style="{StaticResource SubtleButton}"
+                                    Margin="0,0,8,0" Command="{Binding Updates.DismissCommand}" />
+                            <Button Style="{StaticResource PrimaryButton}" Padding="12,5"
+                                    Command="{Binding Updates.InstallCommand}"
+                                    ToolTip="Download it, close, and reopen on the new version">
+                                <TextBlock Text="{Binding Updates.UpdateButtonText}" FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                            </Button>
+                        </StackPanel>
+                        <ProgressBar DockPanel.Dock="Right" Width="180" Height="6" Maximum="100"
+                                     VerticalAlignment="Center" Margin="12,0,0,0"
+                                     Value="{Binding Updates.Progress, Mode=OneWay}"
+                                     Visibility="{Binding Updates.IsBusy, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding Updates.BannerText}" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" />
+                    </DockPanel>
+                </Border>
+
                 <Border Background="{StaticResource BlueToneBrush}"
                         BorderBrush="{StaticResource BlueDimBrush}"
                         BorderThickness="0,0,0,1" Padding="24,9"
@@ -424,6 +455,25 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <TextBlock Text="{Binding StatusText}" Style="{StaticResource MonoText}"
                                VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <TextBlock Text="{Binding Updates.CurrentVersionText, Mode=OneTime}"
+                               Style="{StaticResource MonoText}"
+                               VerticalAlignment="Center" Margin="0,0,8,0"
+                               ToolTip="The version of Elin Texture Workshop you are running" />
+                    <Button Content="Check for updates" Style="{StaticResource SubtleButton}"
+                            Padding="9,3" Margin="0,0,8,0"
+                            ToolTip="Ask GitHub whether a newer version of this application is out"
+                            Command="{Binding Updates.CheckCommand}"
+                            Visibility="{Binding Updates.IsUpdateAvailable,
+                                        Converter={StaticResource InverseBoolToVis}}" />
+                    <Button Style="{StaticResource PrimaryButton}" Padding="9,3" Margin="0,0,8,0"
+                            ToolTip="Download the new version, close, and reopen on it"
+                            Command="{Binding Updates.InstallCommand}"
+                            Visibility="{Binding Updates.IsUpdateAvailable,
+                                        Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding Updates.UpdateButtonText}" FontSize="10.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                    </Button>
                     <Button Content="Log" Style="{StaticResource SubtleButton}" Padding="9,3"
                             ToolTip="Open the folder holding the application log"
                             Command="{Binding OpenLogCommand}" />

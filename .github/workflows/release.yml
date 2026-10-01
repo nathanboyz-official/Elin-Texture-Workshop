@@ -24,12 +24,21 @@ jobs:
       - name: Run the tests
         run: dotnet test -c Release --nologo
 
+      # The in-app updater compares its own version with the latest tag, so the build
+      # takes its version from the tag rather than trusting Directory.Build.props to match.
+      - name: Work out the version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = if ($tag -match '^v(\d+\.\d+\.\d+)$') { $Matches[1] } else { '' }
+          "VERSION_ARG=$(if ($version) { "-p:Version=$version" } else { '' })" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       # Self-contained, so someone downloading this does not have to install .NET first.
       - name: Publish
         run: >
           dotnet publish src/ElinTextureManager.App
           -c Release -r win-x64 --self-contained true
-          -o publish/win-x64 --nologo
+          -o publish/win-x64 --nologo ${{ env.VERSION_ARG }}
 
       - name: Package
         shell: pwsh

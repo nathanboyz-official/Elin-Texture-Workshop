@@ -171,7 +171,14 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,12"
-                               Text="These two switches are the only things that leave this machine. Everything else - scanning, conflicts, overrides, health, searching by picture - is done locally against files you already have. There is no account to sign in to, no API key, and no telemetry of any kind." />
+                               Text="These switches are the only things that leave this machine. Everything else - scanning, conflicts, overrides, health, searching by picture - is done locally against files you already have. There is no account to sign in to, no API key, and no telemetry of any kind." />
+
+                    <CheckBox Content="Check for a new version of this application when it starts"
+                              Margin="0,0,0,0"
+                              IsChecked="{Binding CheckForAppUpdates}" />
+                    <TextBlock Style="{StaticResource SubtleText}" Margin="22,6,0,14"
+                               TextWrapping="Wrap"
+                               Text="Asks api.github.com for the latest release of Elin Texture Workshop and nothing else. When there is one, a bar offers to install it: one click downloads it, closes this window and reopens on the new version, keeping your settings and choices. The Check for updates button at the bottom right works whether this is on or not." />
 
                     <CheckBox Content="Let the News page fetch Elin's announcements from Steam"
                               IsChecked="{Binding EnableSteamNews}" />
@@ -209,7 +216,7 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SubtleText}" Margin="0,0,0,10"
-                               Text="Elin's loadorder.txt records the order of your Workshop mods but does not state which end wins a file conflict. Later-wins matches the usual convention and is the default; flip it if you observe the opposite in game. This only affects which mod is shown as the current winner - your own overrides are unaffected." />
+                               Text="Elin loads mods from the top of loadorder.txt down, and when two supply the same image the one loaded later is the one you see - read from the game's own code. Leave this on Later unless you see the opposite in game. It only changes which mod is shown as the current winner." />
 
                     <RadioButton Content="Later entries win  (recommended)" GroupName="Convention"
                                  IsChecked="{Binding LaterWins}" />

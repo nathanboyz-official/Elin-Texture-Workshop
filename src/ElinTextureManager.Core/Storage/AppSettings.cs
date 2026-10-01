@@ -99,6 +99,13 @@ public sealed class AppSettings
 
     public string ActiveProfile { get; set; } = "Default";
 
+    /// <summary>
+    /// Ask GitHub for a newer release of this application when it starts. Only the
+    /// project's own release page is asked; nothing about the user or their mods is sent.
+    /// The Check for updates button works either way.
+    /// </summary>
+    public bool CheckForAppUpdates { get; set; } = true;
+
     public static AppSettings Load(string path)
     {
         try

@@ -1,0 +1,8 @@
+<Project>
+  <!-- One version for the whole application. The release workflow overrides it from the
+       tag (v1.2.3 -> 1.2.3), and the in-app updater compares it with GitHub's latest
+       release - so a release must never be tagged lower than what is written here. -->
+  <PropertyGroup>
+    <Version>1.0.2</Version>
+  </PropertyGroup>
+</Project>

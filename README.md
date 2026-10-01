@@ -250,6 +250,21 @@ points at it, so moving the folder afterwards will break it.
 You do **not** need .NET installed. The zip is self-contained, which is why it is around
 60 MB.
 
+### Updating
+
+From version 1.0.2 the application updates itself. When a new release is out, a bar
+across the top says so — click **UPDATE TO v…**. It downloads the new version from this
+repository's releases, checks it against the SHA-256 GitHub publishes for it, closes, puts
+the new files over the old ones and opens again. Your settings, texture choices and setups
+are kept: they live in `%APPDATA%`, not beside the program.
+
+**Check for updates**, at the bottom right next to the version number, asks on demand.
+The automatic check at startup can be turned off in Settings.
+
+If the folder the application is in cannot be written to (under `Program Files`, for
+example), it offers the download page instead — extract the new zip over the old folder.
+Versions 1.0.0 and 1.0.1 predate the updater, so from those, download 1.0.2 by hand once.
+
 ### "Windows protected your PC"
 
 The first launch shows a blue SmartScreen box. Click **More info**, then **Run anyway**.
@@ -273,16 +288,24 @@ Backups\           load-order backups
 
 ### Network access
 
-One feature uses the network, and only that one: the **Game News** page asks Steam's
-public news endpoint for Elin's announcements.
+The **Game News** page asks Steam's public news endpoint for Elin's announcements:
 
 ```
 https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=2135150
 ```
 
 No API key, no account, no identifiers — the app ID and a count, nothing else. Turn it off
-in Settings and the page shows whatever the last successful fetch cached. Everything else
-in the application works entirely from files on your disk.
+in Settings and the page shows whatever the last successful fetch cached.
+
+The **update check** asks GitHub for this repository's latest release, and downloads from
+it only when you click update:
+
+```
+https://api.github.com/repos/nathanboyz-official/Elin-Texture-Workshop/releases/latest
+```
+
+Nothing about you or your mods is sent. Everything else in the application works entirely
+from files on your disk; each of these can be switched off in Settings.
 
 ### Opening Workshop pages in Steam
 
@@ -572,12 +595,13 @@ reversible.
 
 ### A note on priority
 
-`loadorder.txt` records the order of your mods but does not state which end wins a file
-conflict, and the game does not document it locally. The application defaults to
-**later entries win**, which matches the usual convention, and says so in the UI. You can
-flip it in Settings. Where a winner cannot be determined — for example when some sources
-are missing from `loadorder.txt` — the application says "uncertain" instead of guessing.
-Your own overrides are unaffected by this setting.
+**Later entries win.** Elin activates packages in load order and applies their Texture
+Replace files one after another into the same table, so the last one written is the one
+shown — read from the game's own `TextureManager` and `TextureData.AddReplace`. The setting
+to flip it remains in case a future game version changes that. Where a winner genuinely
+cannot be determined — an unlisted mod whose `loadPriority` lands on the same number as a
+listed mod's line, which the game's unstable sort breaks either way — the application says
+"uncertain" instead of guessing.
 
 ---
 
@@ -608,12 +632,17 @@ more here than a tidy folder.
 ### Cutting a release
 
 Tag a version and push it; the workflow in `.github/workflows/release.yml` runs the
-tests, publishes a self-contained build, zips it and attaches it to a GitHub Release.
+tests, publishes a self-contained build stamped with the tag's version, zips it and
+attaches it to a GitHub Release. Everyone running 1.0.2 or later is then offered it in the
+application.
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.3
+git push origin v1.0.3
 ```
+
+Bump `<Version>` in `Directory.Build.props` to match, so local builds report the right
+number. The tag must always be higher than the last one, or the updater will not offer it.
 
 To build the same zip locally without tagging anything:
 

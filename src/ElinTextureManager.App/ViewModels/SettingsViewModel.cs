@@ -75,6 +75,13 @@ public sealed class SettingsViewModel : ObservableObject
         set { _app.Settings.EnableSteamNews = value; Persist(); OnPropertyChanged(); }
     }
 
+    /// <summary>Whether to ask GitHub for a newer release of this application at startup.</summary>
+    public bool CheckForAppUpdates
+    {
+        get => _app.Settings.CheckForAppUpdates;
+        set { _app.Settings.CheckForAppUpdates = value; Persist(); OnPropertyChanged(); }
+    }
+
     /// <summary>
     /// Whether closing the window hides it to the notification area instead of quitting.
     /// Turning it off also removes the tray icon, since it would then do nothing.

@@ -92,6 +92,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Bisect = new BisectViewModel(_app, OnDataChanged);
         DressUp = new DressUpViewModel(_app);
         Sheets = new SheetsViewModel(_app);
+        Updates = new AppUpdateViewModel(_app);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(userRequested: true), () => !IsScanning);
         NavigateCommand = new RelayCommand(p => Navigate(p as string));
@@ -123,6 +124,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public SheetsViewModel Sheets { get; }
 
     public DressUpViewModel DressUp { get; }
+
+    /// <summary>The application's own updates, from its GitHub releases.</summary>
+    public AppUpdateViewModel Updates { get; }
 
     /// <summary>Every nav entry, in one list, for badges and selection.</summary>
     public ObservableCollection<NavItem> NavItems { get; } = new();
@@ -220,6 +224,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (!_app.IsConfigured)
         {
             StatusText = "Elin was not found automatically.";
+            _ = Updates.CheckQuietlyAsync();
             Navigate("Settings");
             OnPropertyChanged(nameof(IsConfigured));
             return;
@@ -246,6 +251,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         StartWatching();
         StartGameDetection();
+
+        // Last, and not awaited: a slow answer from GitHub must never hold up the library.
+        _ = Updates.CheckQuietlyAsync();
     }
 
     /// <summary>
